@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="A personal archive of academic and scientific writing.">
+    <meta name="theme-color" content="#f4f3e9">
+    <title>The Natural Inquiry — Chloe Elia</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="script.js" defer></script>
+  </head>
+  <body>
+    <header class="site-header home-header">
+      <a class="wordmark" href="#top" aria-label="The Natural Inquiry home">
+        <span class="wordmark-mark" aria-hidden="true">N</span>
+        <span>The Natural Inquiry</span>
+      </a>
+      <nav aria-label="Main navigation">
+        <a href="#archive">Archive</a>
+        <a href="profile.html">Profile</a>
+        <a href="natural-inquiry-index.html">Index</a>
+        <a href="#about">About</a>
+      </nav>
+    </header>
+
+    <figure class="home-banner">
+      <img
+        src="images/home-banner.jpg"
+        alt="A spiral ammonite fossil embedded in pale stone."
+        width="4030"
+        height="2816"
+        fetchpriority="high"
+      >
+    </figure>
+
+    <main id="top">
+      <section class="intro" aria-labelledby="page-title">
+        <p class="eyebrow"><span class="status-dot" aria-hidden="true"></span> A personal collection of ideas</p>
+        <h1 id="page-title">Writing,<br><em>in the open.</em></h1>
+        <p class="intro-copy">
+          A growing archive of academic and scientific writing: research, essays,
+          notes, and the questions that connect them.
+        </p>
+        <a class="text-link" href="#archive">Explore the archive <span aria-hidden="true">↓</span></a>
+        <span class="intro-index" aria-hidden="true">EST. 2026</span>
+      </section>
+
+      <section class="profile-preview" aria-labelledby="profile-preview-title">
+        <a class="profile-preview-link" href="profile.html">
+          <div>
+            <p class="eyebrow">Beyond the archive</p>
+            <h2 id="profile-preview-title">Academic profile</h2>
+            <p class="profile-preview-copy">
+              Biography, academic background, research interests, experience,
+              and selected work in one place.
+            </p>
+          </div>
+          <span class="profile-preview-cta">Explore the profile <span aria-hidden="true">↗</span></span>
+        </a>
+      </section>
+
+      <section class="profile-preview index-preview" aria-labelledby="index-preview-title">
+        <a class="profile-preview-link" href="natural-inquiry-index.html">
+          <div>
+            <p class="eyebrow">A directory of the natural sciences</p>
+            <h2 id="index-preview-title">The Natural Inquiry Index</h2>
+            <p class="profile-preview-copy">
+              Browse scientific disciplines and subjects that spark my curiosity.
+            </p>
+          </div>
+          <span class="profile-preview-cta">Enter the index <span aria-hidden="true">↗</span></span>
+        </a>
+      </section>
+
+      <section class="archive-section" id="archive" aria-labelledby="archive-title">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">The collection</p>
+            <h2 id="archive-title">Selected writing</h2>
+          </div>
+          <p class="archive-count" id="archive-count" aria-live="polite"></p>
+        </div>
+
+        <div class="archive-tools">
+          <div class="filters" role="group" aria-label="Filter writing by type">
+            <button class="filter-button is-active" type="button" data-filter="all" aria-pressed="true">All</button>
+            <button class="filter-button" type="button" data-filter="Essay" aria-pressed="false">Essays</button>
+            <button class="filter-button" type="button" data-filter="Research" aria-pressed="false">Research</button>
+            <button class="filter-button" type="button" data-filter="Notes" aria-pressed="false">Notes</button>
+          </div>
+          <label class="search">
+            <span class="visually-hidden">Search writing</span>
+            <svg aria-hidden="true" viewBox="0 0 20 20" fill="none">
+              <circle cx="8.8" cy="8.8" r="5.8"></circle>
+              <path d="m13.2 13.2 4 4"></path>
+            </svg>
+            <input id="search-input" type="search" placeholder="Search the archive">
+          </label>
+        </div>
+
+        <div class="writing-list" id="writing-list" aria-live="polite"></div>
+        <p class="empty-state" id="empty-state">
+          The archive is just getting started. New writing will appear here.
+        </p>
+      </section>
+
+      <section class="profile-preview map-preview" aria-labelledby="map-preview-title">
+        <a class="profile-preview-link" href="interests.html">
+          <div>
+            <p class="eyebrow">A visual index</p>
+            <h2 id="map-preview-title">Research, in connection</h2>
+            <p class="profile-preview-copy">
+              Explore an interactive map of my interests across living systems,
+              environments, and scientific tools.
+            </p>
+          </div>
+          <span class="profile-preview-cta">Explore the interest map <span aria-hidden="true">↗</span></span>
+        </a>
+      </section>
+
+      <section class="about-section" id="about" aria-labelledby="about-title">
+        <p class="eyebrow">A note about this site</p>
+        <div class="about-copy">
+          <h2 id="about-title">Ideas deserve<br>a place to live.</h2>
+          <p>
+            I’m <strong>Chloe Elia</strong>. This is a home for my academic and
+            scientific writing—a place to make ideas easier to find, revisit,
+            and share. The archive brings together work across projects and
+            disciplines.
+          </p>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <a class="wordmark footer-wordmark" href="#top">
+        <span class="wordmark-mark" aria-hidden="true">N</span>
+        <span>The Natural Inquiry</span>
+      </a>
+      <p>Made for curiosity. <span id="current-year"></span></p>
+      <a class="back-to-top" href="#top">Back to top ↑</a>
+    </footer>
+  </body>
+</html>

@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="An interactive map of Chloe Elia's interests across the biological and natural sciences and research technology.">
+    <meta name="theme-color" content="#f4f3e9">
+    <title>Research Interest Map — The Natural Inquiry</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="interests.js" defer></script>
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="wordmark" href="index.html" aria-label="The Natural Inquiry home">
+        <span class="wordmark-mark" aria-hidden="true">N</span>
+        <span>The Natural Inquiry</span>
+      </a>
+      <nav aria-label="Main navigation">
+        <a href="index.html#archive">Archive</a>
+        <a href="profile.html">Profile</a>
+        <a href="natural-inquiry-index.html">Index</a>
+        <a href="index.html#about">About</a>
+      </nav>
+    </header>
+
+    <main class="interest-map-main">
+      <a class="article-back" href="profile.html">← Back to academic profile</a>
+
+      <header class="interest-map-header">
+        <p class="eyebrow">A field of curiosity</p>
+        <h1>Research,<br><em>in connection.</em></h1>
+        <p class="article-deck">
+          Explore the subjects that shape my interests across living systems,
+          environments, and the tools we use to study them.
+        </p>
+      </header>
+
+      <section aria-label="Interactive research interest map">
+        <div class="interest-map-tools">
+          <div class="interest-map-filters" role="group" aria-label="Filter interest areas">
+            <button class="interest-map-filter" type="button" data-category="all" aria-pressed="true">All areas</button>
+            <button class="interest-map-filter" type="button" data-category="life" aria-pressed="false">Life sciences</button>
+            <button class="interest-map-filter" type="button" data-category="environment" aria-pressed="false">Earth systems</button>
+            <button class="interest-map-filter" type="button" data-category="technology" aria-pressed="false">Research tools</button>
+          </div>
+          <p class="interest-map-count" id="interest-map-count" aria-live="polite"></p>
+        </div>
+
+        <div class="interest-map">
+          <svg class="interest-map-lines" viewBox="0 0 800 510" preserveAspectRatio="none" aria-hidden="true">
+            <path d="M400 255 105 145M400 255 300 65M400 255 520 65M400 255 695 150M400 255 690 365M400 255 510 450M400 255 290 450M400 255 105 360"/>
+          </svg>
+          <div class="interest-map-center" aria-hidden="true">Living systems<br>&amp; their worlds</div>
+          <button class="interest-node" type="button" data-topic="marine" style="left:13%;top:29%" aria-pressed="false">Marine and Aquatic Sciences</button>
+          <button class="interest-node" type="button" data-topic="mycology" style="left:37%;top:12%" aria-pressed="false">Mycology and Parasitology</button>
+          <button class="interest-node" type="button" data-topic="botany" style="left:65%;top:12%" aria-pressed="false">Botany and Plant Biology</button>
+          <button class="interest-node" type="button" data-topic="entomology" style="left:87%;top:30%" aria-pressed="false">Entomology</button>
+          <button class="interest-node" type="button" data-topic="atmosphere" style="left:86%;top:72%" aria-pressed="false">Meteorology and Climatology</button>
+          <button class="interest-node" type="button" data-topic="biotech" style="left:64%;top:88%" aria-pressed="false">Biotechnology and Biomedical Science</button>
+          <button class="interest-node" type="button" data-topic="bioinformatics" style="left:36%;top:88%" aria-pressed="false">Bioinformatics and Computational Biology</button>
+          <button class="interest-node" type="button" data-topic="imaging" style="left:13%;top:72%" aria-pressed="false">Scientific Imaging and Emerging Technologies</button>
+        </div>
+
+        <section class="interest-detail" aria-live="polite" aria-labelledby="interest-detail-title">
+          <p class="interest-detail-label" id="interest-detail-category"></p>
+          <div class="interest-detail-content">
+            <h2 id="interest-detail-title"></h2>
+            <p id="interest-detail-description"></p>
+          </div>
+        </section>
+        <p class="interest-map-note">
+          The map shows areas of interest and conceptual connections, not claims
+          of completed research or formal project relationships.
+        </p>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <a class="wordmark footer-wordmark" href="index.html">
+        <span class="wordmark-mark" aria-hidden="true">N</span>
+        <span>The Natural Inquiry</span>
+      </a>
+      <p>Made for curiosity. <span id="current-year"></span></p>
+      <a class="back-to-top" href="index.html#top">Back to top ↑</a>
+    </footer>
+    <script>
+      document.querySelector("#current-year").textContent = new Date().getFullYear();
+    </script>
+  </body>
+</html>

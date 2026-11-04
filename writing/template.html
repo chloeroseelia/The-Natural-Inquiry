@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="[Add a concise description of this writing.]">
+    <meta name="theme-color" content="#f4f3e9">
+    <title>[Publication title] — The Natural Inquiry</title>
+    <link rel="stylesheet" href="../styles.css">
+    <script src="../natural-inquiry-index-data.js" defer></script>
+    <script src="../natural-inquiry-subject-links.js" defer></script>
+    <script>
+      document.addEventListener("DOMContentLoaded", () => {
+        document.querySelector("#current-year").textContent = new Date().getFullYear();
+      });
+    </script>
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="wordmark" href="../index.html" aria-label="The Natural Inquiry home">
+        <span class="wordmark-mark" aria-hidden="true">N</span>
+        <span>The Natural Inquiry</span>
+      </a>
+      <nav aria-label="Main navigation">
+        <a href="../index.html#archive">Archive</a>
+        <a href="../profile.html">Profile</a>
+        <a href="../natural-inquiry-index.html">Index</a>
+        <a href="../index.html#about">About</a>
+      </nav>
+    </header>
+
+    <main class="article-main">
+      <a class="article-back" href="../index.html#archive">← Back to selected writing</a>
+
+      <div
+        class="article-subjects"
+        id="article-subjects"
+        data-writing-url="writing/field-notes.html"
+        aria-label="Related scientific disciplines"
+      ></div>
+
+      <header class="article-header">
+        <p class="eyebrow">[Essay, research, or notes]</p>
+        <h1>[Publication title]</h1>
+        <p class="article-deck">[Write a brief summary to introduce the question, subject, or central finding.]</p>
+        <div class="article-meta">
+          <span>Chloe Elia</span>
+          <span>[Year]</span>
+          <span>[Publication status or course, if relevant]</span>
+        </div>
+      </header>
+
+      <!-- Optional banner: add an image in the images folder and replace this example path and alt text.
+      <figure class="article-hero">
+        <img
+          src="../images/your-banner.jpg"
+          alt="[Describe the image for readers who cannot see it.]"
+          width="1440"
+          height="620"
+        >
+        <figcaption>[Optional image caption or credit.]</figcaption>
+      </figure>
+      -->
+
+      <article class="article-content">
+        <p>
+          [Begin with an opening paragraph that gives readers the context they
+          need. Replace the bracketed prompts with your writing before publishing
+          this page.]
+        </p>
+
+        <h2>[Section heading]</h2>
+        <p>[Add the body of your writing. Use section headings to help readers follow the argument.]</p>
+
+        <h2>[Another section heading]</h2>
+        <p>[Continue the article here. You can add or remove sections as needed.]</p>
+
+        <section class="article-references" aria-labelledby="references-title">
+          <h2 id="references-title">References</h2>
+          <ol>
+            <li>[Add a source in the citation style appropriate to this work.]</li>
+          </ol>
+        </section>
+      </article>
+    </main>
+
+    <footer class="site-footer">
+      <a class="wordmark footer-wordmark" href="../index.html">
+        <span class="wordmark-mark" aria-hidden="true">N</span>
+        <span>The Natural Inquiry</span>
+      </a>
+      <p>Made for curiosity. <span id="current-year"></span></p>
+      <a class="back-to-top" href="../index.html#top">Back to top ↑</a>
+    </footer>
+  </body>
+</html>
