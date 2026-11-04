@@ -16,7 +16,17 @@ const naturalInquiryIndexCategories = [
         description: "A personal essay about life at sea, grief, and learning to face what lies ahead.",
         url: "writing/the-choice-to-sail-away.html"
       }
-    ]
+    ],
+    subjectWriting: {
+      Oceanography: [
+        {
+          title: "The Choice to Sail Away",
+          type: "Essay",
+          description: "A personal essay about life at sea, grief, and learning to face what lies ahead.",
+          url: "writing/the-choice-to-sail-away.html"
+        }
+      ]
+    }
   },
   {
     id: "mycology-parasitology",
@@ -34,7 +44,25 @@ const naturalInquiryIndexCategories = [
       "Plant Physiology",
       "Plant Diversity",
       "Plant Adaptation"
-    ]
+    ],
+    relatedWriting: [
+      {
+        title: "Seaweed Made Simple: Quick, Affordable Meals for Busy Students",
+        type: "Essay",
+        description: "A student-focused exploration of seaweed as a sustainable food source, paired with quick, affordable recipes.",
+        url: "writing/seaweed-made-simple.html"
+      }
+    ],
+    subjectWriting: {
+      "Plant Diversity": [
+        {
+          title: "Seaweed Made Simple: Quick, Affordable Meals for Busy Students",
+          type: "Essay",
+          description: "A student-focused exploration of seaweed as a sustainable food source, paired with quick, affordable recipes.",
+          url: "writing/seaweed-made-simple.html"
+        }
+      ]
+    }
   },
   {
     id: "entomology",
@@ -81,5 +109,28 @@ const naturalInquiryIndexCategories = [
       "Image Analysis",
       "Scientific Instrumentation"
     ]
+  }
+];
+
+const naturalInquiryWritings = [
+  {
+    title: "The Choice to Sail Away",
+    type: "Essay",
+    description: "A personal essay presented in its own reading page.",
+    url: "writing/the-choice-to-sail-away.html"
+  },
+  {
+    title: "Seaweed Made Simple: Quick, Affordable Meals for Busy Students",
+    type: "Essay",
+    description: "A student-focused exploration of seaweed as a sustainable food source, paired with quick, affordable recipes.",
+    url: "writing/seaweed-made-simple.html"
+  },
+  {
+    title: "Birds as Neighbors: Learning to Notice the Living World",
+    type: "Essay",
+    year: 2026,
+    description: "A sample essay about everyday encounters with birds and the practice of paying attention.",
+    url: "writing/birds-as-neighbors.html",
+    status: "Sample placeholder"
   }
 ];

@@ -1,20 +1,5 @@
 // Add published pieces here. Each entry's type should be Essay, Research, or Notes.
-const writings = [
-  {
-    title: "The Choice to Sail Away",
-    type: "Essay",
-    description: "A personal essay presented in its own reading page.",
-    url: "writing/the-choice-to-sail-away.html"
-  },
-  {
-    title: "Birds as Neighbors: Learning to Notice the Living World",
-    type: "Essay",
-    year: 2026,
-    description: "A sample essay about everyday encounters with birds and the practice of paying attention.",
-    url: "writing/birds-as-neighbors.html",
-    status: "Sample placeholder"
-  }
-];
+const writings = naturalInquiryWritings;
 
 const writingList = document.querySelector("#writing-list");
 const emptyState = document.querySelector("#empty-state");

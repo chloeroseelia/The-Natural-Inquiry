@@ -4,12 +4,15 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="description" content="Academic profile, background, research interests, and experience of Chloe Elia.">
-    <meta name="theme-color" content="#f4f3e9">
+    <meta name="theme-color" content="#f7f5ee">
     <title>Academic Profile — The Natural Inquiry</title>
     <link rel="stylesheet" href="styles.css">
     <script>
       document.addEventListener("DOMContentLoaded", () => {
         document.querySelector("#current-year").textContent = new Date().getFullYear();
+        if (window.location.hash === "#research-experience") {
+          document.querySelector("#research-experience .profile-details").open = true;
+        }
       });
     </script>
   </head>
@@ -21,6 +24,7 @@
       </a>
       <nav aria-label="Main navigation">
         <a href="index.html#archive">Archive</a>
+        <a href="writing-showcase.html">Showcase</a>
         <a href="profile.html" aria-current="page">Profile</a>
         <a href="natural-inquiry-index.html">Index</a>
         <a href="index.html#about">About</a>
@@ -183,13 +187,12 @@
 
               <h3 class="profile-interest-heading">Scientific Imaging and Emerging Technologies</h3>
               <p>Digital microscopy, histology, image processing, scientific instrumentation, and innovative tools for biological research.</p>
-              <a class="profile-map-link" href="interests.html">Explore the interactive interest map <span aria-hidden="true">↗</span></a>
             </div>
           </details>
         </div>
       </section>
 
-      <section class="profile-section" aria-labelledby="experience-title">
+      <section class="profile-section" id="research-experience" aria-labelledby="experience-title">
         <div class="profile-section-label">
           <h2 id="experience-title">Research experience</h2>
         </div>
@@ -209,18 +212,21 @@
               </p>
               <p>
                 I am currently contributing to a project investigating
-                <em>Ichthyophonus</em> infection in Yukon River Chinook salmon.
+                <em>Ichthyophonus</em> infection in
+                <a href="research/chinook-salmon.html">Yukon River Chinook salmon</a>.
                 My work involves developing skills in digital histology and
                 image analysis using QuPath to examine parasites and changes
                 in cardiac tissue.
               </p>
               <p>
-                My independent research has also included studying the Garibaldi
+                My independent research has also included studying the
+                <a href="research/garibaldi.html">Garibaldi</a>
                 (<em>Hypsypops rubicundus</em>), California's state marine fish,
-                as well as the Pacific trade winds and their influence on
-                oceanic conditions. A related study explored migratory bird
-                patterns and their connections to broader atmospheric and
-                environmental systems.
+                as well as the <a href="research/pacific-trade-winds.html">Pacific trade winds</a>
+                and their influence on oceanic conditions. A related study
+                explored <a href="research/migratory-birds.html">migratory bird patterns</a>
+                and their connections to broader atmospheric and environmental
+                systems.
               </p>
               <p>
                 These projects reflect my interest in exploring questions

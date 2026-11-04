@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Current research and selected writing by Chloe Elia.">
+    <meta name="theme-color" content="#f7f5ee">
+    <title>Research &amp; Writing Showcase — The Natural Inquiry</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="research-carousel.js" defer></script>
+    <script>
+      document.addEventListener("DOMContentLoaded", () => {
+        document.querySelector("#current-year").textContent = new Date().getFullYear();
+      });
+    </script>
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="wordmark" href="index.html" aria-label="The Natural Inquiry home">
+        <span class="wordmark-mark" aria-hidden="true">N</span>
+        <span>The Natural Inquiry</span>
+      </a>
+      <nav aria-label="Main navigation">
+        <a href="index.html#archive">Archive</a>
+        <a href="writing-showcase.html" aria-current="page">Showcase</a>
+        <a href="profile.html">Profile</a>
+        <a href="natural-inquiry-index.html">Index</a>
+        <a href="index.html#about">About</a>
+      </nav>
+    </header>
+
+    <main class="showcase-main">
+      <a class="article-back" href="index.html#archive">← Back to the writing archive</a>
+
+      <figure class="showcase-banner">
+        <img
+          src="tree.png"
+          alt="A broad, moss-covered tree branch in a misty forest."
+          width="1024"
+          height="683"
+        >
+      </figure>
+
+      <header class="showcase-header">
+        <p class="eyebrow">Current research &amp; selected work</p>
+        <h1>Questions worth<br><em>following.</em></h1>
+        <p class="article-deck">
+          A curated look at the research I’m contributing to and the writing
+          that reflects my curiosity across science and the natural world.
+        </p>
+      </header>
+
+      <section
+        class="showcase-research"
+        aria-label="Research projects"
+        aria-roledescription="carousel"
+      >
+        <div class="showcase-research-heading">
+          <div>
+            <p class="eyebrow">In progress &amp; past projects</p>
+            <h2>Research in motion</h2>
+          </div>
+          <div class="research-carousel-controls">
+            <button class="research-carousel-button" type="button" data-carousel-previous aria-label="Previous research project" disabled>
+              <span aria-hidden="true">←</span>
+            </button>
+            <button class="research-carousel-button" type="button" data-carousel-next aria-label="Next research project">
+              <span aria-hidden="true">→</span>
+            </button>
+          </div>
+        </div>
+        <p class="research-carousel-hint">Swipe to explore, or use the arrows</p>
+        <div class="research-carousel-track" data-carousel-track aria-live="off">
+          <article class="research-carousel-slide" role="group" aria-roledescription="slide" aria-label="1 of 4">
+            <a class="research-project-card" href="research/chinook-salmon.html">
+              <div class="showcase-research-label">
+                <p class="eyebrow">In progress · Undergraduate research</p>
+                <span class="showcase-mark" aria-hidden="true">01</span>
+              </div>
+              <div class="research-project-copy">
+                <h3>Chinook salmon heart health</h3>
+                <p>
+                  I’m contributing to a project investigating <em>Ichthyophonus</em>
+                  infection in Yukon River Chinook salmon. My work involves
+                  developing skills in digital histology and image analysis
+                  with QuPath to examine parasites and changes in cardiac tissue.
+                </p>
+                <span class="showcase-work-cta">Explore this project <span aria-hidden="true">↗</span></span>
+              </div>
+            </a>
+          </article>
+          <article class="research-carousel-slide" role="group" aria-roledescription="slide" aria-label="2 of 4">
+            <a class="research-project-card" href="research/garibaldi.html">
+              <div class="showcase-research-label">
+                <p class="eyebrow">Past · Independent study</p>
+                <span class="showcase-mark" aria-hidden="true">02</span>
+              </div>
+              <div class="research-project-copy">
+                <h3>The Garibaldi</h3>
+                <p>
+                  An independent study of the Garibaldi (<em>Hypsypops
+                  rubicundus</em>), California’s state marine fish.
+                </p>
+                <span class="showcase-work-cta">Explore this project <span aria-hidden="true">↗</span></span>
+              </div>
+            </a>
+          </article>
+          <article class="research-carousel-slide" role="group" aria-roledescription="slide" aria-label="3 of 4">
+            <a class="research-project-card" href="research/pacific-trade-winds.html">
+              <div class="showcase-research-label">
+                <p class="eyebrow">Past · Independent study</p>
+                <span class="showcase-mark" aria-hidden="true">03</span>
+              </div>
+              <div class="research-project-copy">
+                <h3>Pacific trade winds</h3>
+                <p>
+                  An independent study of Pacific trade winds and their
+                  influence on oceanic conditions.
+                </p>
+                <span class="showcase-work-cta">Explore this project <span aria-hidden="true">↗</span></span>
+              </div>
+            </a>
+          </article>
+          <article class="research-carousel-slide" role="group" aria-roledescription="slide" aria-label="4 of 4">
+            <a class="research-project-card" href="research/migratory-birds.html">
+              <div class="showcase-research-label">
+                <p class="eyebrow">Past · Independent study</p>
+                <span class="showcase-mark" aria-hidden="true">04</span>
+              </div>
+              <div class="research-project-copy">
+                <h3>Migratory bird patterns</h3>
+                <p>
+                  A study exploring migratory bird patterns and their
+                  connections to broader atmospheric and environmental systems.
+                </p>
+                <span class="showcase-work-cta">Explore this project <span aria-hidden="true">↗</span></span>
+              </div>
+            </a>
+          </article>
+        </div>
+        <div class="research-carousel-footer">
+          <div class="research-carousel-dots" role="group" aria-label="Choose a research project">
+            <button type="button" aria-label="Show Chinook salmon heart health" aria-pressed="true" data-carousel-dot="0"></button>
+            <button type="button" aria-label="Show The Garibaldi" aria-pressed="false" data-carousel-dot="1"></button>
+            <button type="button" aria-label="Show Pacific trade winds" aria-pressed="false" data-carousel-dot="2"></button>
+            <button type="button" aria-label="Show Migratory bird patterns" aria-pressed="false" data-carousel-dot="3"></button>
+          </div>
+          <p class="research-carousel-status visually-hidden" data-carousel-status aria-live="polite">Project 1 of 4</p>
+          <a class="showcase-text-link" href="profile.html#research-experience">
+            More about my research experience <span aria-hidden="true">↗</span>
+          </a>
+        </div>
+      </section>
+
+      <section class="showcase-works" aria-labelledby="showcase-works-title">
+        <div class="showcase-section-heading">
+          <div>
+            <p class="eyebrow">A few pieces from the archive</p>
+            <h2 id="showcase-works-title">Selected work</h2>
+          </div>
+          <a class="showcase-text-link" href="index.html#archive">
+            Browse all writing <span aria-hidden="true">↗</span>
+          </a>
+        </div>
+
+        <div class="showcase-work-grid">
+          <a class="showcase-work-card" href="writing/the-choice-to-sail-away.html">
+            <span class="showcase-work-type">Essay · Personal writing</span>
+            <h3>The Choice to Sail Away</h3>
+            <p>
+              An essay about life at sea, grief, and learning to face what lies ahead.
+            </p>
+            <span class="showcase-work-cta">Read the essay <span aria-hidden="true">↗</span></span>
+          </a>
+
+          <a
+            class="showcase-work-card"
+            href="writing/seaweed-made-simple.html"
+          >
+            <span class="showcase-work-type">Essay · Food &amp; sustainability</span>
+            <h3>Seaweed Made Simple</h3>
+            <p>
+              A student-focused exploration of seaweed as a sustainable food
+              source, paired with quick, affordable recipes.
+            </p>
+            <span class="showcase-work-cta">Read the essay <span aria-hidden="true">↗</span></span>
+          </a>
+        </div>
+      </section>
+
+      <p class="showcase-note">
+        This collection will grow as new research, writing, and projects take shape.
+      </p>
+    </main>
+
+    <footer class="site-footer">
+      <a class="wordmark footer-wordmark" href="index.html">
+        <span class="wordmark-mark" aria-hidden="true">N</span>
+        <span>The Natural Inquiry</span>
+      </a>
+      <p>Made for curiosity. <span id="current-year"></span></p>
+      <a class="back-to-top" href="index.html#top">Back to top ↑</a>
+    </footer>
+  </body>
+</html>

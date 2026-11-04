@@ -4,9 +4,10 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="description" content="A personal archive of academic and scientific writing.">
-    <meta name="theme-color" content="#f4f3e9">
+    <meta name="theme-color" content="#f7f5ee">
     <title>The Natural Inquiry — Chloe Elia</title>
     <link rel="stylesheet" href="styles.css">
+    <script src="natural-inquiry-index-data.js" defer></script>
     <script src="script.js" defer></script>
   </head>
   <body>
@@ -17,6 +18,7 @@
       </a>
       <nav aria-label="Main navigation">
         <a href="#archive">Archive</a>
+        <a href="writing-showcase.html">Showcase</a>
         <a href="profile.html">Profile</a>
         <a href="natural-inquiry-index.html">Index</a>
         <a href="#about">About</a>
@@ -72,11 +74,25 @@
         </a>
       </section>
 
+      <section class="profile-preview writing-preview" aria-labelledby="writing-preview-title">
+        <a class="profile-preview-link" href="writing-showcase.html">
+          <div>
+            <p class="eyebrow">Current research &amp; selected work</p>
+            <h2 id="writing-preview-title">Research &amp; Writing Showcase</h2>
+            <p class="profile-preview-copy">
+              A closer look at current research, standout essays, and projects
+              as they take shape.
+            </p>
+          </div>
+          <span class="profile-preview-cta">Explore the showcase <span aria-hidden="true">↗</span></span>
+        </a>
+      </section>
+
       <section class="archive-section" id="archive" aria-labelledby="archive-title">
         <div class="section-heading">
           <div>
             <p class="eyebrow">The collection</p>
-            <h2 id="archive-title">Selected writing</h2>
+            <h2 id="archive-title">Writing archive</h2>
           </div>
           <p class="archive-count" id="archive-count" aria-live="polite"></p>
         </div>
@@ -102,20 +118,6 @@
         <p class="empty-state" id="empty-state">
           The archive is just getting started. New writing will appear here.
         </p>
-      </section>
-
-      <section class="profile-preview map-preview" aria-labelledby="map-preview-title">
-        <a class="profile-preview-link" href="interests.html">
-          <div>
-            <p class="eyebrow">A visual index</p>
-            <h2 id="map-preview-title">Research, in connection</h2>
-            <p class="profile-preview-copy">
-              Explore an interactive map of my interests across living systems,
-              environments, and scientific tools.
-            </p>
-          </div>
-          <span class="profile-preview-cta">Explore the interest map <span aria-hidden="true">↗</span></span>
-        </a>
       </section>
 
       <section class="about-section" id="about" aria-labelledby="about-title">

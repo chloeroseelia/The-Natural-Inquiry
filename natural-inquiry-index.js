@@ -5,17 +5,27 @@ const searchInput = document.querySelector("#index-search");
 const searchStatus = document.querySelector("#index-search-status");
 
 const requestedCategoryId = new URLSearchParams(window.location.search).get("category");
+const requestedSubject = new URLSearchParams(window.location.search).get("subject");
 let activeCategoryId = naturalInquiryIndexCategories.some((category) => category.id === requestedCategoryId)
   ? requestedCategoryId
   : null;
-let activeSubject = null;
+let activeSubject = naturalInquiryIndexCategories
+  .find((category) => category.id === activeCategoryId)
+  ?.subjects.includes(requestedSubject)
+  ? requestedSubject
+  : null;
 
-function updateCategoryUrl(categoryId) {
+function updateCategoryUrl(categoryId, subject = null) {
   const url = new URL(window.location.href);
   if (categoryId) {
     url.searchParams.set("category", categoryId);
   } else {
     url.searchParams.delete("category");
+  }
+  if (subject) {
+    url.searchParams.set("subject", subject);
+  } else {
+    url.searchParams.delete("subject");
   }
   window.history.replaceState(null, "", url);
 }
@@ -66,10 +76,48 @@ function renderCategories(query = "") {
       const selectedButton = Array.from(categoryGrid.querySelectorAll(".index-category-card"))
         .find((entry) => entry.dataset.categoryId === category.id);
       if (selectedButton) selectedButton.focus();
-      subjectPanel.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      subjectPanel.scrollIntoView({ behavior: "smooth", block: "start" });
     });
     categoryGrid.append(button);
   }
+}
+
+function createWritingSection(titleText, writings) {
+  if (!writings.length) return null;
+
+  const writingSection = document.createElement("section");
+  writingSection.className = "index-related-writing";
+
+  const writingHeading = document.createElement("h3");
+  writingHeading.textContent = titleText;
+  writingSection.append(writingHeading);
+
+  const writingList = document.createElement("div");
+  writingList.className = "index-related-writing-list";
+
+  for (const writing of writings) {
+    const link = document.createElement("a");
+    link.className = "index-related-writing-item";
+    link.href = writing.url;
+
+    const title = document.createElement("span");
+    title.className = "index-related-writing-title";
+    title.textContent = writing.title;
+
+    const description = document.createElement("span");
+    description.className = "index-related-writing-description";
+    description.textContent = writing.description;
+
+    const type = document.createElement("span");
+    type.className = "index-related-writing-type";
+    type.textContent = writing.type;
+
+    link.append(title, description, type);
+    writingList.append(link);
+  }
+
+  writingSection.append(writingList);
+  return writingSection;
 }
 
 function renderSubjectPanel() {
@@ -125,6 +173,7 @@ function renderSubjectPanel() {
     button.textContent = subject;
     button.addEventListener("click", () => {
       activeSubject = subject;
+      updateCategoryUrl(category.id, subject);
       renderSubjectPanel();
       const selectedButton = Array.from(subjectPanel.querySelectorAll(".index-subject-button"))
         .find((entry) => entry.dataset.subject === subject);
@@ -135,44 +184,8 @@ function renderSubjectPanel() {
 
   subjectPanel.append(headingRow, subjectList);
 
-  if (category.relatedWriting?.length) {
-    const writingSection = document.createElement("section");
-    writingSection.className = "index-related-writing";
-    writingSection.setAttribute("aria-labelledby", "index-related-writing-title");
-
-    const writingHeading = document.createElement("h3");
-    writingHeading.id = "index-related-writing-title";
-    writingHeading.textContent = "Related writing";
-    writingSection.append(writingHeading);
-
-    const writingList = document.createElement("div");
-    writingList.className = "index-related-writing-list";
-
-    for (const writing of category.relatedWriting) {
-      const link = document.createElement("a");
-      link.className = "index-related-writing-item";
-      link.href = writing.url;
-
-      const title = document.createElement("span");
-      title.className = "index-related-writing-title";
-      title.textContent = writing.title;
-
-      const description = document.createElement("span");
-      description.className = "index-related-writing-description";
-      description.textContent = writing.description;
-
-      const type = document.createElement("span");
-      type.className = "index-related-writing-type";
-      type.textContent = writing.type;
-
-      link.append(title, description, type);
-      writingList.append(link);
-    }
-
-    writingSection.append(writingList);
-    subjectPanel.append(writingSection);
-  }
-
+  const subjectWriting = activeSubject ? category.subjectWriting?.[activeSubject] || [] : [];
+  const categoryWriting = subjectWriting.length ? [] : category.relatedWriting || [];
   if (activeSubject) {
     const detail = document.createElement("section");
     detail.className = "index-subject-detail";
@@ -190,6 +203,12 @@ function renderSubjectPanel() {
     detail.append(detailLabel, detailTitle, detailCopy);
     subjectPanel.append(detail);
   }
+
+  const relatedWriting = createWritingSection(
+    subjectWriting.length ? `Writing connected to ${activeSubject}` : "Related writing",
+    subjectWriting.length ? subjectWriting : categoryWriting
+  );
+  if (relatedWriting) subjectPanel.append(relatedWriting);
 }
 
 function renderSearchResults(query) {
@@ -225,13 +244,13 @@ function renderSearchResults(query) {
     button.addEventListener("click", () => {
       activeCategoryId = category.id;
       activeSubject = subject;
-      updateCategoryUrl(category.id);
+      updateCategoryUrl(category.id, subject);
       searchInput.value = "";
       render();
       const selectedButton = Array.from(subjectPanel.querySelectorAll(".index-subject-button"))
         .find((entry) => entry.dataset.subject === subject);
       if (selectedButton) selectedButton.focus();
-      subjectPanel.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      subjectPanel.scrollIntoView({ behavior: "smooth", block: "start" });
     });
     searchResults.append(button);
   }
