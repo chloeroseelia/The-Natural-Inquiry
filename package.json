@@ -1,0 +1,14 @@
+{
+  "name": "the-natural-inquiry-backend",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck:backend": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@aws-amplify/backend": "1.25.1",
+    "@aws-amplify/backend-cli": "1.10.0",
+    "@types/node": "26.6.6",
+    "typescript": "5.9.3"
+  }
+}

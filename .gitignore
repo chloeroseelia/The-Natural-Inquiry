@@ -1,0 +1,4 @@
+node_modules/
+amplify_outputs*.json
+amplify/#current-cloud-backend/
+amplify/.temp/
