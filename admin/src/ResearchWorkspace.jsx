@@ -155,25 +155,28 @@ export default function ResearchWorkspace({ initialEntries, onSave, onDelete }) 
       setWorking(saved);
       setEntries((current) => [saved, ...current.filter((entry) => entry.id !== saved.id)]);
       setActiveId(saved.id);
-      setSavedMessage("Saved in this browser");
+      setSavedMessage("Saved to the cloud");
     } catch (saveError) {
-      setError(saveError.message || "The research draft could not be saved.");
+      setError(saveError.message || "The research project could not be saved. Nothing was changed.");
     } finally {
       setSaving(false);
     }
   }
 
   async function removeEntry() {
-    if (!working || !window.confirm(`Delete "${working.title}" from this browser's research workspace?`)) return;
+    if (!working || !window.confirm(`Permanently delete "${working.title}" from the cloud database? This cannot be undone.`)) return;
+    setSaving(true);
     try {
-      await onDelete(working.id);
+      await onDelete(working);
       setEntries((current) => current.filter((entry) => entry.id !== working.id));
       setWorking(null);
       setActiveId(null);
       setError("");
       setSavedMessage("");
     } catch (deleteError) {
-      setError(deleteError.message || "The research draft could not be deleted.");
+      setError(deleteError.message || "The research project could not be deleted. Nothing was changed.");
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -190,7 +193,7 @@ export default function ResearchWorkspace({ initialEntries, onSave, onDelete }) 
               <Icon name={preview ? "edit" : "eye"} size={15} /> {preview ? "Edit" : "Preview"}
             </button>
             <button className="button button-primary" disabled={saving} onClick={saveEntry} type="button">
-              <Icon name="save" size={15} /> {saving ? "Saving…" : "Save draft"}
+              <Icon name="save" size={15} /> {saving ? "Saving…" : "Save"}
             </button>
           </div>
         </div>
@@ -205,7 +208,7 @@ export default function ResearchWorkspace({ initialEntries, onSave, onDelete }) 
               <div className="research-editor-heading">
                 <p className="eyebrow">{working.kind === "profile" ? "Profile research content" : "Research project"}</p>
                 <h1>{working.title || (working.kind === "profile" ? "Profile section" : "A new project")}</h1>
-                <p>{working.isExisting ? `Based on ${working.sourcePath}` : "New browser-local draft"}</p>
+                <p>{working.isExisting ? `Based on ${working.sourcePath}` : working.revision ? "Stored in the cloud" : "New project — not saved yet"}</p>
               </div>
               {working.kind === "project" ? (
                 <>
@@ -228,10 +231,10 @@ export default function ResearchWorkspace({ initialEntries, onSave, onDelete }) 
                   <Field label="Expanded section content" hint="Separate paragraphs with a blank line." onChange={(value) => updateField("content", value)} value={working.content} multiline />
                 </>
               )}
-              {working.isExisting && <p className="research-source-note">Saving here creates a local draft; it does not change the public page.</p>}
+              {working.isExisting && <p className="research-source-note">Saving updates the cloud database; it does not change the public page.</p>}
               <div className="research-editor-bottom">
-                <button className="text-link research-delete" onClick={removeEntry} type="button">
-                  {working.isExisting ? "Remove local copy" : "Delete draft"}
+                <button className="text-link research-delete" disabled={saving} onClick={removeEntry} type="button">
+                  Delete from cloud
                 </button>
                 <span>Last saved: {formatDate(working.updatedAt)}</span>
               </div>
@@ -275,7 +278,7 @@ export default function ResearchWorkspace({ initialEntries, onSave, onDelete }) 
             <strong>{entry.title}</strong>
             <span className="research-entry-description">{entry.subtitle || entry.summary || entry.overview || "A new research project draft."}</span>
             <span className="research-entry-footer">
-              <span>{entry.isExisting ? "Existing public content" : "Browser draft"}</span>
+              <span>{entry.isExisting ? "Existing public content" : "Cloud project"}</span>
               <span>{formatDate(entry.updatedAt)} <Icon name="arrow" size={14} /></span>
             </span>
           </button>
@@ -284,7 +287,7 @@ export default function ResearchWorkspace({ initialEntries, onSave, onDelete }) 
           <p className="research-empty-state">{query ? "No research matches this search." : "No research has been added yet."}</p>
         )}
       </div>
-      <p className="research-storage-note">Drafts are saved in this browser only. They are not yet synced to the cloud or published to the public website.</p>
+      <p className="research-storage-note">Changes are saved to the cloud database. Nothing is published to the public website.</p>
     </section>
   );
 }

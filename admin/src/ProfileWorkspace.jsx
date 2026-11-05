@@ -113,9 +113,9 @@ export default function ProfileWorkspace({ initialEntries, onSave }) {
       });
       setWorking(saved);
       setEntries((current) => current.map((entry) => entry.id === saved.id ? saved : entry));
-      setSavedMessage("Saved in this browser");
+      setSavedMessage("Saved to the cloud");
     } catch (saveError) {
-      setError(saveError.message || "The profile section could not be saved.");
+      setError(saveError.message || "The profile section could not be saved. Nothing was changed.");
     } finally {
       setSaving(false);
     }
@@ -134,7 +134,7 @@ export default function ProfileWorkspace({ initialEntries, onSave }) {
               <Icon name={preview ? "edit" : "eye"} size={15} /> {preview ? "Edit" : "Preview"}
             </button>
             <button className="button button-primary" disabled={saving} onClick={saveEntry} type="button">
-              <Icon name="save" size={15} /> {saving ? "Saving…" : "Save draft"}
+              <Icon name="save" size={15} /> {saving ? "Saving…" : "Save"}
             </button>
           </div>
         </div>
@@ -147,7 +147,7 @@ export default function ProfileWorkspace({ initialEntries, onSave }) {
               <div className="research-editor-heading">
                 <p className="eyebrow">{working.kind === "profile-introduction" ? "Profile introduction" : "Academic profile section"}</p>
                 <h1>{working.title}</h1>
-                <p>Based on {working.sourcePath}; saved changes stay in this browser.</p>
+                <p>Based on {working.sourcePath}; saved changes are stored in the cloud.</p>
               </div>
               <label className="research-field">
                 <span>{working.kind === "profile-introduction" ? "Page heading" : "Section heading"}</span>
@@ -165,7 +165,7 @@ export default function ProfileWorkspace({ initialEntries, onSave }) {
                 <small>Separate paragraphs with a blank line. Lines beginning with “## ” preview as subheadings; lines beginning with “• ” preview as bullets.</small>
               </label>
               <p className="research-source-note">
-                This is a local draft. Saving does not change profile.html or publish anything.
+                Saving updates the cloud database. It does not change profile.html or publish anything.
               </p>
               <div className="research-editor-bottom">
                 <span>Last saved: {formatDate(working.updatedAt)}</span>
@@ -205,7 +205,7 @@ export default function ProfileWorkspace({ initialEntries, onSave }) {
             <strong>{entry.title}</strong>
             <span className="research-entry-description">{entry.summary || entry.content}</span>
             <span className="research-entry-footer">
-              <span>{entry.updatedAt ? "Browser draft" : "Existing profile content"}</span>
+              <span>{entry.updatedAt ? "Edited in the dashboard" : "Existing profile content"}</span>
               <span>{formatDate(entry.updatedAt)} <Icon name="arrow" size={14} /></span>
             </span>
           </button>
@@ -214,7 +214,7 @@ export default function ProfileWorkspace({ initialEntries, onSave }) {
           <p className="research-empty-state">{query ? "No profile sections match this search." : "No profile sections are available."}</p>
         )}
       </div>
-      <p className="research-storage-note">Your profile drafts are stored in this browser. Public profile content stays unchanged until a publishing workflow is added.</p>
+      <p className="research-storage-note">Profile changes are saved to the cloud database. Public profile content stays unchanged until a publishing workflow is added.</p>
     </section>
   );
 }

@@ -63,6 +63,361 @@ input:focus-visible {
   min-height: 100vh;
 }
 
+.auth-page {
+  min-height: 100vh;
+  background: var(--admin-paper);
+}
+
+.auth-page > .amplify-authenticator {
+  min-height: 100vh;
+  align-content: center;
+  padding: 32px 20px;
+}
+
+.auth-page .amplify-card {
+  border: 1px solid var(--admin-line);
+  border-radius: 12px;
+  background: var(--admin-surface);
+  box-shadow: 0 16px 48px rgb(45 56 46 / 8%);
+}
+
+.auth-page .amplify-heading {
+  color: var(--admin-ink);
+  font-family: var(--admin-serif);
+  font-weight: 500;
+}
+
+.auth-page .amplify-label {
+  color: var(--admin-forest);
+  font-family: "DM Sans", "Segoe UI", sans-serif;
+}
+
+.auth-page .amplify-input {
+  border-color: var(--admin-line);
+  background: #fffefa;
+  color: var(--admin-ink);
+}
+
+.auth-page .amplify-button--primary {
+  border-color: var(--admin-forest);
+  background: var(--admin-forest);
+}
+
+.auth-page .amplify-button--primary:hover {
+  border-color: #334433;
+  background: #334433;
+}
+
+.auth-brand {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-bottom: 20px;
+  color: var(--admin-ink);
+}
+
+.auth-brand strong,
+.auth-brand small {
+  display: block;
+}
+
+.auth-brand strong {
+  font-family: var(--admin-serif);
+  font-size: 19px;
+  font-weight: 500;
+}
+
+.auth-brand small {
+  margin-top: 4px;
+  color: var(--admin-muted);
+  font-family: var(--admin-mono);
+  font-size: 8px;
+  letter-spacing: 0.13em;
+}
+
+.auth-status,
+.auth-message {
+  width: min(100% - 40px, 430px);
+  margin: 0 auto;
+  color: var(--admin-forest);
+  text-align: center;
+}
+
+.auth-message {
+  padding: 36px;
+  border: 1px solid var(--admin-line);
+  border-radius: 12px;
+  background: var(--admin-surface);
+  box-shadow: 0 16px 48px rgb(45 56 46 / 8%);
+}
+
+.auth-message .brand-seal {
+  margin: 0 auto 15px;
+}
+
+.auth-message h1 {
+  margin: 0 0 10px;
+  color: var(--admin-ink);
+  font-family: var(--admin-serif);
+  font-size: 25px;
+  font-weight: 500;
+}
+
+.auth-message p {
+  margin: 0 0 20px;
+  color: var(--admin-muted);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.auth-message .button + .button {
+  margin-left: 8px;
+}
+
+.auth-message.cloud-check {
+  width: min(100% - 40px, 560px);
+}
+
+.cloud-check-results {
+  margin: 0 0 22px;
+  padding: 0;
+  list-style: none;
+  text-align: left;
+}
+
+.cloud-check-results li {
+  display: grid;
+  gap: 2px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--admin-line);
+  font-size: 14px;
+}
+
+.cloud-check-results li span {
+  color: var(--admin-muted);
+  overflow-wrap: anywhere;
+}
+
+.cloud-check-results li[data-state="ok"] span {
+  color: var(--admin-forest);
+}
+
+.cloud-check-results li[data-state="error"] span {
+  color: #9a3b2e;
+}
+
+.auth-message.migration-preview {
+  width: min(100% - 40px, 980px);
+  text-align: left;
+}
+
+.migration-page {
+  align-items: flex-start;
+  padding-block: 32px;
+}
+
+.migration-preview .brand-seal {
+  margin-left: 0;
+}
+
+.migration-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+
+.migration-actions .button + .button {
+  margin-left: 0;
+}
+
+.migration-summary,
+.migration-model {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--admin-line);
+}
+
+.migration-preview h2 {
+  margin: 0 0 8px;
+  color: var(--admin-ink);
+  font-family: var(--admin-serif);
+  font-size: 19px;
+  font-weight: 500;
+}
+
+.migration-preview h2 small {
+  color: var(--admin-muted);
+  font-size: 13px;
+}
+
+.migration-preview p {
+  margin: 0 0 8px;
+}
+
+.migration-ok {
+  color: var(--admin-forest);
+}
+
+.migration-warning {
+  color: #8a6a1f;
+}
+
+.migration-blocker {
+  color: #9a3b2e;
+}
+
+.migration-counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 0 0 12px;
+  padding: 0;
+  list-style: none;
+}
+
+.migration-counts li {
+  display: grid;
+  min-width: 96px;
+  padding: 10px 14px;
+  border: 1px solid var(--admin-line);
+  border-radius: 8px;
+  text-align: center;
+}
+
+.migration-counts strong {
+  font-size: 22px;
+}
+
+.migration-counts span {
+  color: var(--admin-muted);
+  font-size: 12px;
+}
+
+.migration-record {
+  margin-bottom: 6px;
+  border: 1px solid var(--admin-line);
+  border-radius: 8px;
+  font-size: 13px;
+}
+
+.migration-record summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  cursor: pointer;
+}
+
+.migration-record summary small {
+  margin-left: auto;
+  color: var(--admin-muted);
+}
+
+.migration-badge {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--admin-line);
+  font-size: 11px;
+  text-transform: uppercase;
+}
+
+.migration-record[data-category="conflict"] .migration-badge {
+  background: #f1dfb8;
+}
+
+.migration-record[data-category="oversized"] .migration-badge {
+  background: #efc9c2;
+}
+
+.migration-record-body {
+  padding: 4px 12px 12px;
+}
+
+.migration-record-body table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.migration-record-body th,
+.migration-record-body td {
+  padding: 5px 8px;
+  border-bottom: 1px solid var(--admin-line);
+  text-align: left;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+
+.migration-stages {
+  margin: 0 0 12px;
+  padding: 10px 14px;
+  border: 1px solid var(--admin-line);
+  border-radius: 8px;
+}
+
+.migration-stages label {
+  display: block;
+  padding: 3px 0;
+  font-size: 14px;
+}
+
+.migration-stages input {
+  margin-right: 8px;
+}
+
+.migration-legend {
+  margin: 22px 0 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--admin-line);
+  color: var(--admin-muted);
+  font-size: 12px;
+}
+
+.migration-legend div {
+  display: flex;
+  gap: 8px;
+}
+
+.migration-legend dt {
+  min-width: 80px;
+  font-weight: 600;
+}
+
+.migration-legend dd {
+  margin: 0;
+}
+
+.storage-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.storage-table th,
+.storage-table td {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--admin-line);
+  text-align: left;
+}
+
+.sidebar-sign-out {
+  width: 100%;
+  margin-top: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--admin-line);
+  border-radius: 7px;
+  background: transparent;
+  color: var(--admin-forest);
+  cursor: pointer;
+  font-size: 11px;
+  text-align: left;
+}
+
+.sidebar-sign-out:hover {
+  background: var(--admin-surface-deep);
+}
+
 .sidebar {
   position: fixed;
   z-index: 20;

@@ -5,24 +5,15 @@ import {
   deleteDraft,
   getDraft,
   listDrafts,
-  listProfileEntries,
-  listPublications,
-  listResearch,
-  savePublication,
-  saveProfileEntry,
-  saveDraft,
-  saveResearchEntry,
-  seedPublicationsIfNeeded,
-  seedProfileIfNeeded,
-  seedResearchIfNeeded,
-  deleteResearchEntry
+  saveDraft
 } from "./draft-storage.js";
+import { cloudContent } from "./cloud-repository.js";
+import { deleteCloudContent, saveCloudRecord } from "./cloud-writes.js";
+import { planPublicationReconciliation, reconcileDraftFilings, reconcilePublications } from "./subject-index-reconcile.js";
+import capabilities, { PRODUCTION_MESSAGES } from "./environment.js";
 import PublicationsWorkspace from "./PublicationsWorkspace.jsx";
-import { getExistingPublications } from "./publication-seeds.js";
 import ProfileWorkspace from "./ProfileWorkspace.jsx";
-import { getProfileSeeds } from "./profile-seeds.js";
 import ResearchWorkspace from "./ResearchWorkspace.jsx";
-import { getResearchSeeds } from "./research-seeds.js";
 import SubjectIndexWorkspace from "./SubjectIndexWorkspace.jsx";
 
 const navigation = [
@@ -97,7 +88,9 @@ function Icon({ name, size = 18, className = "" }) {
   );
 }
 
-function Sidebar({ activeSection, onNavigate, isOpen, onClose }) {
+function Sidebar({ activeSection, onNavigate, isOpen, onClose, user, onSignOut }) {
+  const accountName = user?.signInDetails?.loginId || user?.username || "Administrator";
+
   return (
     <>
       <button
@@ -108,7 +101,7 @@ function Sidebar({ activeSection, onNavigate, isOpen, onClose }) {
       />
       <aside className={`sidebar ${isOpen ? "is-open" : ""}`}>
         <div className="sidebar-brand">
-          <a className="brand-lockup" href="/admin/" aria-label="The Natural Inquiry workspace">
+          <a className="brand-lockup" href={import.meta.env.BASE_URL} aria-label="The Natural Inquiry workspace">
             <span className="brand-seal">N</span>
             <span className="brand-name">The Natural Inquiry</span>
           </a>
@@ -149,8 +142,11 @@ function Sidebar({ activeSection, onNavigate, isOpen, onClose }) {
           </div>
           <button className="profile-switcher" type="button" onClick={() => onNavigate("settings")}>
             <span className="avatar">CE</span>
-            <span className="profile-name"><strong>Chloe Elia</strong><small>Editor</small></span>
+            <span className="profile-name"><strong>{accountName}</strong><small>Administrator</small></span>
             <Icon className="profile-chevron" name="chevron" size={15} />
+          </button>
+          <button className="sidebar-sign-out" onClick={onSignOut} type="button">
+            Sign out
           </button>
         </div>
       </aside>
@@ -493,7 +489,7 @@ function NewEntryDialog({ onClose, onSelect }) {
   );
 }
 
-export default function App() {
+export default function App({ user, onSignOut }) {
   const [activeSection, setActiveSection] = useState("overview");
   const [search, setSearch] = useState("");
   const [dialog, setDialog] = useState(null);
@@ -509,7 +505,15 @@ export default function App() {
       : []
   ));
   const [taxonomyLoadError, setTaxonomyLoadError] = useState("");
+  const [filingSync, setFilingSync] = useState({ state: "idle", message: "", result: null });
+  const [publicationSyncToken, setPublicationSyncToken] = useState(0);
   const [storageError, setStorageError] = useState("");
+  const [cloudReloadToken, setCloudReloadToken] = useState(0);
+  const [cloudStatus, setCloudStatus] = useState({
+    publications: { state: "loading", message: "" },
+    research: { state: "loading", message: "" },
+    profile: { state: "loading", message: "" }
+  });
   const [toast, setToast] = useState("");
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
@@ -518,6 +522,8 @@ export default function App() {
   const toastTimer = useRef(null);
 
   useEffect(() => {
+    // The taxonomy endpoint only exists on the local dev server; hosted builds use the bundled copy.
+    if (!capabilities.taxonomyEditing) return undefined;
     let active = true;
     fetch("/__admin-api/taxonomy")
       .then(async (response) => {
@@ -537,23 +543,38 @@ export default function App() {
     };
   }, []);
 
+  // Cloud content loads once for the session; section changes never refetch it.
   useEffect(() => {
     let active = true;
-    const initializedProfile = seedProfileIfNeeded(getProfileSeeds())
-      .then(() => listProfileEntries());
-    Promise.all([
-      listDrafts(),
-      seedPublicationsIfNeeded(getExistingPublications()).then(() => listPublications()),
-      initializedProfile,
-      initializedProfile.then(() => seedResearchIfNeeded(getResearchSeeds())).then(() => listResearch())
-    ])
-      .then(([drafts, publications, profile, research]) => {
-        if (active) {
-          setSavedDrafts(drafts);
-          setSavedPublications(publications);
-          setSavedProfile(profile);
-          setSavedResearch(research);
-        }
+    const targets = [
+      ["publications", setSavedPublications],
+      ["research", setSavedResearch],
+      ["profile", setSavedProfile]
+    ];
+    setCloudStatus((current) => Object.fromEntries(Object.keys(current).map((key) => [key, { state: "loading", message: "" }])));
+    targets.forEach(([key, setter]) => {
+      cloudContent.load(key)
+        .then(({ records, issues }) => {
+          if (!active) return;
+          setter(records);
+          const message = issues.length ? `${issues.length} cloud record(s) had data problems and may display incompletely.` : "";
+          setCloudStatus((current) => ({ ...current, [key]: { state: "ready", message } }));
+        })
+        .catch((error) => {
+          if (active) setCloudStatus((current) => ({ ...current, [key]: { state: "error", message: error.message || "Unknown error." } }));
+        });
+    });
+    return () => {
+      active = false;
+    };
+  }, [cloudReloadToken]);
+
+  // Drafts remain local (IndexedDB) and are not part of the cloud models.
+  useEffect(() => {
+    let active = true;
+    listDrafts()
+      .then((drafts) => {
+        if (active) setSavedDrafts(drafts);
       })
       .catch((error) => {
         if (active) setStorageError(`Local draft storage is unavailable. ${error.message}`);
@@ -615,23 +636,88 @@ export default function App() {
     return draft;
   }
 
+  async function handleSavePublication(entry) {
+    const { record } = await saveCloudRecord({ modelName: "Publication", local: entry });
+    await cloudContent.applyWrite("publications", { record });
+    setSavedPublications((current) => {
+      const index = current.findIndex((item) => item.id === record.id);
+      if (index >= 0) return current.map((item) => item.id === record.id ? record : item);
+      return [record, ...current];
+    });
+    return record;
+  }
+
+  async function handleDeletePublication(entry) {
+    const result = await deleteCloudContent({ modelName: "Publication", record: entry });
+    await cloudContent.applyWrite("publications", { removeId: entry.id });
+    setSavedPublications((current) => current.filter((item) => item.id !== entry.id));
+    return result;
+  }
+
   async function handleSaveResearch(entry) {
-    await saveResearchEntry(entry);
-    setSavedResearch((current) => [entry, ...current.filter((saved) => saved.id !== entry.id)]);
-    setStorageError("");
-    showToast("Research draft saved in this browser.");
-    return entry;
+    const { action, record } = await saveCloudRecord({ modelName: "ResearchProject", local: entry });
+    await cloudContent.applyWrite("research", { record });
+    setSavedResearch((current) => {
+      const index = current.findIndex((item) => item.id === record.id);
+      if (index >= 0) return current.map((item) => item.id === record.id ? record : item);
+      return [record, ...current];
+    });
+    showToast(action === "created" ? "Research project created in the cloud." : "Research project saved to the cloud.");
+    return record;
   }
 
   async function handleSaveProfile(entry) {
-    await saveProfileEntry(entry);
-    setSavedProfile((current) => current.map((saved) => saved.id === entry.id ? entry : saved));
-    setStorageError("");
-    showToast("Profile draft saved in this browser.");
-    return entry;
+    const { record } = await saveCloudRecord({ modelName: "ProfileContent", local: entry });
+    await cloudContent.applyWrite("profile", { record });
+    setSavedProfile((current) => current.map((item) => item.id === record.id ? record : item));
+    showToast("Profile section saved to the cloud.");
+    return record;
+  }
+
+  async function reconcileCloudFilings(categories) {
+    setFilingSync({ state: "saving", message: "Updating cloud publication filings…", result: null });
+    const result = await reconcilePublications({
+      categories,
+      publications: savedPublications,
+      save: (record) => saveCloudRecord({ modelName: "Publication", local: record }).then((saved) => saved.record),
+      onApplied: async (record) => {
+        await cloudContent.applyWrite("publications", { record });
+        setSavedPublications((current) => current.map((item) => item.id === record.id ? record : item));
+      }
+    });
+    const problems = result.conflicts + result.failed;
+    if (result.updated) setPublicationSyncToken((token) => token + 1);
+    setFilingSync({
+      state: problems ? "error" : "done",
+      message: problems
+        ? `${result.updated} cloud publication(s) updated; ${result.conflicts} conflict(s) and ${result.failed} failure(s) were left unchanged. Reload the cloud data and use "Re-check cloud filings" to retry.`
+        : result.planned
+          ? `${result.updated} cloud publication(s) unfiled from removed topics. This changes the cloud workspace only; the public website is not updated.`
+          : "Cloud publication filings already match the Index.",
+      result
+    });
+    return result;
+  }
+
+  async function handleReconcileCloud() {
+    if (!capabilities.cloudFilingReconciliation) return;
+    if (cloudStatus.publications.state !== "ready") return;
+    const plan = planPublicationReconciliation(taxonomy, savedPublications);
+    if (plan.length && !window.confirm(`Unfile ${plan.length} cloud publication(s) from Index topics that no longer exist? Only their Index filings change. This does not update the public website.`)) return;
+    try {
+      await reconcileCloudFilings(taxonomy);
+    } catch (error) {
+      setFilingSync({ state: "error", message: error.message || "Cloud filings could not be updated.", result: null });
+    }
   }
 
   async function handleSaveTaxonomy(categories) {
+    if (!capabilities.taxonomyEditing) throw new Error(PRODUCTION_MESSAGES.taxonomy);
+    const cloudReady = cloudStatus.publications.state === "ready";
+    const cloudPlan = cloudReady ? planPublicationReconciliation(categories, savedPublications) : [];
+    if (cloudPlan.length && !window.confirm(
+      `Saving will also unfile ${cloudPlan.length} cloud publication(s) from topics being removed or renamed (${cloudPlan.slice(0, 3).map((item) => item.title).join("; ")}${cloudPlan.length > 3 ? "; …" : ""}). Only their Index filings change, and this does not update the public website. Continue?`
+    )) throw new Error("Save cancelled. Nothing was changed.");
     const response = await fetch("/__admin-api/taxonomy", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -643,50 +729,32 @@ export default function App() {
     setTaxonomy(result.categories);
     setTaxonomyLoadError("");
     setStorageError("");
-    const normalizeFilings = (filings = []) => filings
-      .map((filing) => {
-        const category = result.categories.find((item) => item.id === filing.id);
-        if (!category) return null;
-        return {
-          ...filing,
-          subjects: (filing.subjects || []).filter((subject) => category.subjects.includes(subject))
-        };
-      })
-      .filter(Boolean);
-    const reconciledDrafts = savedDrafts.map((draft) => {
-      if (!Array.isArray(draft.indexCategories)) return draft;
-      const indexCategories = normalizeFilings(draft.indexCategories);
-      return JSON.stringify(indexCategories) === JSON.stringify(draft.indexCategories)
-        ? draft
-        : { ...draft, indexCategories };
-    });
+    const reconciledDrafts = reconcileDraftFilings(savedDrafts, result.categories);
     const updatedDrafts = reconciledDrafts.filter((draft, index) => draft !== savedDrafts[index]);
-    const reconciledPublications = savedPublications.map((publication) => {
-      if (!Array.isArray(publication.indexCategories)) return publication;
-      const indexCategories = normalizeFilings(publication.indexCategories);
-      return JSON.stringify(indexCategories) === JSON.stringify(publication.indexCategories)
-        ? publication
-        : { ...publication, indexCategories };
-    });
-    const updatedPublications = reconciledPublications.filter((publication, index) => publication !== savedPublications[index]);
     try {
-      await Promise.all([
-        ...updatedDrafts.map((draft) => saveDraft(draft)),
-        ...updatedPublications.map((publication) => savePublication(publication))
-      ]);
+      await Promise.all(updatedDrafts.map((draft) => saveDraft(draft)));
       if (updatedDrafts.length) setSavedDrafts(reconciledDrafts);
-      if (updatedPublications.length) setSavedPublications(reconciledPublications);
     } catch (draftError) {
-      throw new Error(`The Index was saved to local project files, but some saved publication or draft tags could not be reconciled. ${draftError.message}`);
+      throw new Error(`The Index was saved to local project files, but some saved draft tags could not be reconciled. ${draftError.message}`);
+    }
+    // Cloud publications are reconciled through the revision-checked cloud write path. Failures
+    // here are reported in the Subject Index panel and can be retried; they never undo the Index save.
+    if (cloudReady) {
+      try {
+        await reconcileCloudFilings(result.categories);
+      } catch (cloudError) {
+        setFilingSync({ state: "error", message: cloudError.message || "Cloud filings could not be updated.", result: null });
+      }
     }
     showToast(result.changed ? "Local Subject Index updated. Nothing was deployed." : "The Subject Index is already up to date.");
     return result.categories;
   }
 
-  async function handleDeleteResearch(id) {
-    await deleteResearchEntry(id);
-    setSavedResearch((current) => current.filter((entry) => entry.id !== id));
-    showToast("Research copy removed from this browser.");
+  async function handleDeleteResearch(entry) {
+    const { action } = await deleteCloudContent({ modelName: "ResearchProject", record: entry });
+    await cloudContent.applyWrite("research", { removeId: entry.id });
+    setSavedResearch((current) => current.filter((item) => item.id !== entry.id));
+    showToast(action === "deleted" ? "Research project deleted from the cloud." : "That project was already deleted from the cloud.");
   }
 
   async function handleOpenEntry(entry) {
@@ -722,6 +790,7 @@ export default function App() {
   }
 
   async function sendPublicationRequest(endpoint, draft) {
+    if (!capabilities.localPublishing) throw new Error(PRODUCTION_MESSAGES.publishing);
     const { file, ...draftData } = draft;
     const response = await fetch(endpoint, {
       method: "POST",
@@ -749,6 +818,15 @@ export default function App() {
     return result;
   }
 
+  function retryCloudLoad() {
+    cloudContent.reset();
+    setCloudReloadToken((token) => token + 1);
+  }
+
+  const cloudSectionKey = { overview: "publications", research: "research", profile: "profile" }[activeSection];
+  const cloudSection = cloudSectionKey ? cloudStatus[cloudSectionKey] : null;
+  const cloudBlocking = Boolean(cloudSection && cloudSection.state !== "ready" && activeSection !== "overview");
+
   const activeSectionLabel = navigation.flatMap((group) => group.items)
     .find((item) => item.id === activeSection)?.label;
 
@@ -759,6 +837,8 @@ export default function App() {
         isOpen={mobileNavOpen}
         onClose={() => setMobileNavOpen(false)}
         onNavigate={setActiveSection}
+        onSignOut={onSignOut}
+        user={user}
       />
 
       <div className="workspace-shell">
@@ -815,19 +895,38 @@ export default function App() {
                 </div>
               )}
             </div>
-            <span aria-hidden="true" className="topbar-avatar">CE</span>
+            <span aria-hidden="true" className="topbar-avatar">
+              {(user?.username || "AD").slice(0, 2).toUpperCase()}
+            </span>
           </div>
         </header>
 
         <main className="main-content">
           <div hidden={activeSection !== "publications"}>
             <PublicationsWorkspace
+              onDeletePublication={handleDeletePublication}
               onEditorStateChange={setPublicationEditorLabel}
               onPublicationRequestHandled={() => setRequestedPublicationId(null)}
+              onRetryCloud={retryCloudLoad}
+              onSavePublication={handleSavePublication}
+              reloadSignal={cloudReloadToken}
+              syncSignal={publicationSyncToken}
               requestedPublicationId={requestedPublicationId}
               taxonomy={taxonomy}
             />
           </div>
+          {!editorDraft && cloudSection && cloudSection.state === "error" && (
+            <p className="storage-warning" role="alert">
+              The {cloudSectionKey === "profile" ? "profile content" : cloudSectionKey === "research" ? "research projects" : "publications"} could not be loaded from the cloud. {cloudSection.message}{" "}
+              <button className="text-link" onClick={retryCloudLoad} type="button">Retry</button>
+            </p>
+          )}
+          {!editorDraft && cloudSection && cloudSection.state === "ready" && cloudSection.message && (
+            <p className="storage-warning" role="status">{cloudSection.message}</p>
+          )}
+          {!editorDraft && cloudBlocking && cloudSection.state === "loading" && (
+            <p className="publication-empty-state" role="status">Loading from the cloud…</p>
+          )}
           {editorDraft ? (
             <EntryEditor
               initialDraft={editorDraft}
@@ -835,6 +934,8 @@ export default function App() {
               onClose={() => setEditorDraft(null)}
               onDelete={handleDeleteDraft}
               onPublish={handlePublish}
+              publishingEnabled={capabilities.localPublishing}
+              publishingDisabledNotice={PRODUCTION_MESSAGES.publishing}
               onReview={handlePublicationReview}
               onSave={handleSaveDraft}
             />
@@ -847,7 +948,7 @@ export default function App() {
               search={search}
               storageError={storageError}
             />
-          ) : activeSection === "publications" ? null : activeSection === "research" ? (
+          ) : activeSection === "publications" || cloudBlocking ? null : activeSection === "research" ? (
             <ResearchWorkspace
               initialEntries={savedResearch}
               onDelete={handleDeleteResearch}
@@ -861,8 +962,15 @@ export default function App() {
           ) : activeSection === "subject-index" ? (
             <SubjectIndexWorkspace
               initialCategories={taxonomy}
+              editable={capabilities.taxonomyEditing}
+              readOnlyNotice={PRODUCTION_MESSAGES.taxonomy}
               loadError={taxonomyLoadError}
               onSave={handleSaveTaxonomy}
+              publications={savedPublications}
+              research={savedResearch}
+              cloudState={{ publications: cloudStatus.publications.state, research: cloudStatus.research.state }}
+              filingSync={filingSync}
+              onReconcileCloud={handleReconcileCloud}
             />
           ) : (
             <SectionPlaceholder

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { describeFilings, planPublicationReconciliation } from "./subject-index-reconcile.js";
 
 function categoryId(title, categories) {
   const base = title
@@ -30,7 +31,18 @@ function Icon({ name, size = 16 }) {
   );
 }
 
-export default function SubjectIndexWorkspace({ initialCategories, loadError, onSave }) {
+export default function SubjectIndexWorkspace({
+  initialCategories,
+  loadError,
+  onSave,
+  publications = [],
+  research = [],
+  cloudState = { publications: "loading", research: "loading" },
+  filingSync = { state: "idle", message: "", result: null },
+  onReconcileCloud,
+  editable = true,
+  readOnlyNotice = ""
+}) {
   const [categories, setCategories] = useState(initialCategories);
   const [query, setQuery] = useState("");
   const [newCategoryTitle, setNewCategoryTitle] = useState("");
@@ -53,8 +65,15 @@ export default function SubjectIndexWorkspace({ initialCategories, loadError, on
     ));
   }, [categories, query]);
   const topicCount = categories.reduce((total, category) => total + category.subjects.length, 0);
+  const cloudReady = cloudState.publications === "ready";
+  const filings = useMemo(() => describeFilings(initialCategories, publications), [initialCategories, publications]);
+  const stalePlan = useMemo(
+    () => (cloudReady ? planPublicationReconciliation(initialCategories, publications) : []),
+    [cloudReady, initialCategories, publications]
+  );
 
   function updateCategory(categoryIdValue, updates) {
+    if (!editable) return;
     setCategories((current) => current.map((category) => (
       category.id === categoryIdValue ? { ...category, ...updates } : category
     )));
@@ -64,6 +83,7 @@ export default function SubjectIndexWorkspace({ initialCategories, loadError, on
 
   function addCategory(event) {
     event.preventDefault();
+    if (!editable) return;
     const title = newCategoryTitle.trim();
     if (!title) return;
     const added = { id: categoryId(title, categories), title, subjects: [] };
@@ -74,6 +94,7 @@ export default function SubjectIndexWorkspace({ initialCategories, loadError, on
   }
 
   function removeCategory(category) {
+    if (!editable) return;
     if (!window.confirm(
       `Remove "${category.title}" from the directory? Any publications filed under it will remain intact but be unfiled from this Index category.`
     )) return;
@@ -84,6 +105,7 @@ export default function SubjectIndexWorkspace({ initialCategories, loadError, on
 
   function addSubject(category, event) {
     event.preventDefault();
+    if (!editable) return;
     const form = event.currentTarget;
     const input = form.elements.namedItem("new-subject");
     const subject = input.value.trim();
@@ -97,6 +119,7 @@ export default function SubjectIndexWorkspace({ initialCategories, loadError, on
   }
 
   function removeSubject(category, subject) {
+    if (!editable) return;
     if (!window.confirm(
       `Remove "${subject}" from "${category.title}"? Publications filed under this topic will remain intact but be unfiled from it.`
     )) return;
@@ -106,6 +129,7 @@ export default function SubjectIndexWorkspace({ initialCategories, loadError, on
   }
 
   async function saveChanges() {
+    if (!editable) return;
     setSaving(true);
     setError("");
     setSavedMessage("");
@@ -130,7 +154,7 @@ export default function SubjectIndexWorkspace({ initialCategories, loadError, on
             Manage the scientific disciplines and topics used by the public Natural Inquiry Index and the publication editor.
           </p>
         </div>
-        <button className="button button-primary" disabled={!isDirty || saving} onClick={saveChanges} type="button">
+        <button className="button button-primary" disabled={!editable || !isDirty || saving} onClick={saveChanges} type="button">
           <Icon name="save" size={15} /> {saving ? "Saving…" : "Save Index"}
         </button>
       </div>
@@ -141,15 +165,46 @@ export default function SubjectIndexWorkspace({ initialCategories, loadError, on
         {savedMessage && <span className="research-saved"><Icon name="check" size={14} />{savedMessage}</span>}
       </div>
 
+      {!editable && readOnlyNotice && <p className="storage-warning" role="note">{readOnlyNotice}</p>}
       {loadError && <p className="research-error" role="alert">{loadError}</p>}
       {error && <p className="research-error" role="alert">{error}</p>}
+
+      <div className="subject-index-cloud-status" role="status">
+        {cloudState.publications === "loading" && <p>Loading cloud publications…</p>}
+        {cloudState.publications === "error" && (
+          <p className="research-error" role="alert">Cloud publications could not be loaded, so filings are not shown and cloud filings will not be changed. Use Retry on the Publications page.</p>
+        )}
+        {cloudReady && (
+          <p>
+            <strong>{publications.length}</strong> cloud {publications.length === 1 ? "publication" : "publications"} loaded.
+            {" "}{research.length ? <>{research.length} research {research.length === 1 ? "project is" : "projects are"} listed in the cloud but cannot be filed in the Index, so they are read-only here.</> : null}
+          </p>
+        )}
+        {cloudReady && stalePlan.length > 0 && (
+          <p className="research-error" role="alert">
+            {stalePlan.length} cloud {stalePlan.length === 1 ? "publication is" : "publications are"} filed under topics that are no longer in the Index.{" "}
+            {editable && <button className="text-link" disabled={filingSync.state === "saving"} onClick={onReconcileCloud} type="button">Re-check cloud filings</button>}
+          </p>
+        )}
+        {filingSync.state === "saving" && <p>{filingSync.message}</p>}
+        {filingSync.state === "done" && <p className="research-saved"><Icon name="check" size={14} />{filingSync.message}</p>}
+        {filingSync.state === "error" && (
+          <div className="research-error" role="alert">
+            <p>{filingSync.message}</p>
+            {filingSync.result?.results.filter((item) => item.status !== "updated").map((item) => (
+              <p key={item.id}>{item.title}: {item.status === "conflict" ? "changed elsewhere (conflict)" : "failed"} — {item.message}</p>
+            ))}
+          </div>
+        )}
+        <p className="subject-index-note">Cloud filings are saved to your AWS workspace only. Filing or unfiling a publication here does not publish it to the public website.</p>
+      </div>
 
       <div className="subject-index-controls">
         <label className="research-search">
           <span className="visually-hidden">Search directory topics</span>
           <input onChange={(event) => setQuery(event.target.value)} placeholder="Find a discipline or topic" type="search" value={query} />
         </label>
-        <form className="subject-index-add-category" onSubmit={addCategory}>
+        <form className="subject-index-add-category" onSubmit={addCategory} hidden={!editable}>
           <label className="visually-hidden" htmlFor="new-index-category">New discipline name</label>
           <input id="new-index-category" onChange={(event) => setNewCategoryTitle(event.target.value)}
             placeholder="Add a new discipline" value={newCategoryTitle} />
@@ -165,11 +220,11 @@ export default function SubjectIndexWorkspace({ initialCategories, loadError, on
             <header className="subject-index-category-header">
               <label className="subject-index-title-field">
                 <span>Discipline</span>
-                <input aria-label={`Discipline name for ${category.title}`}
+                <input aria-label={`Discipline name for ${category.title}`} readOnly={!editable}
                   onChange={(event) => updateCategory(category.id, { title: event.target.value })}
                   value={category.title} />
               </label>
-              <button className="subject-index-delete" onClick={() => removeCategory(category)} type="button">
+              <button className="subject-index-delete" disabled={!editable} hidden={!editable} onClick={() => removeCategory(category)} type="button">
                 <Icon name="trash" size={14} /> Remove discipline
               </button>
             </header>
@@ -179,13 +234,25 @@ export default function SubjectIndexWorkspace({ initialCategories, loadError, on
               <p>These are the selectable subtopics shown in the public directory and publication tags.</p>
             </div>
 
+            {cloudReady && (() => {
+              const filed = filings.byCategory.get(category.id)?.publications || [];
+              return (
+                <details className="subject-index-filed">
+                  <summary>{filed.length} cloud {filed.length === 1 ? "publication" : "publications"} filed here</summary>
+                  {filed.length ? (
+                    <ul>{filed.map((item) => <li key={item.id}>{item.title}{item.archived ? " (archived)" : ""}</li>)}</ul>
+                  ) : <p>None yet. File publications from the Publications editor.</p>}
+                </details>
+              );
+            })()}
+
             {category.subjects.length ? (
               <div className="subject-index-topic-list">
                 {category.subjects.map((subject, index) => (
                   <div className="subject-index-topic-row" key={`${category.id}-${index}-${subject}`}>
                     <label>
                       <span className="visually-hidden">Topic name</span>
-                      <input aria-label={`Topic ${index + 1} in ${category.title}`}
+                      <input aria-label={`Topic ${index + 1} in ${category.title}`} readOnly={!editable}
                         onChange={(event) => {
                           const replacement = event.target.value;
                           updateCategory(category.id, {
@@ -194,7 +261,7 @@ export default function SubjectIndexWorkspace({ initialCategories, loadError, on
                         }}
                         value={subject} />
                     </label>
-                    <button aria-label={`Remove ${subject} from ${category.title}`} className="subject-index-topic-delete"
+                    <button aria-label={`Remove ${subject} from ${category.title}`} className="subject-index-topic-delete" disabled={!editable} hidden={!editable}
                       onClick={() => removeSubject(category, subject)} type="button">×</button>
                   </div>
                 ))}
@@ -203,7 +270,7 @@ export default function SubjectIndexWorkspace({ initialCategories, loadError, on
               <p className="subject-index-empty-topics">No topics yet. Add the first one below.</p>
             )}
 
-            <form className="subject-index-add-topic" onSubmit={(event) => addSubject(category, event)}>
+            <form className="subject-index-add-topic" hidden={!editable} onSubmit={(event) => addSubject(category, event)}>
               <label className="visually-hidden" htmlFor={`new-topic-${category.id}`}>New topic for {category.title}</label>
               <input id={`new-topic-${category.id}`} name="new-subject" placeholder="Add a topic or subtopic" />
               <button className="text-link" type="submit"><Icon name="plus" size={14} /> Add topic</button>
@@ -216,7 +283,9 @@ export default function SubjectIndexWorkspace({ initialCategories, loadError, on
       </div>
 
       <p className="subject-index-note">
-        Saving updates the directory data in this local project and refreshes the tags available to Publications. Removed topics are unfiled from related work, but the publications themselves are not deleted. Nothing is pushed to GitHub or deployed.
+        {editable
+          ? "Saving updates the directory data in this local project and refreshes the tags available to Publications. Removed topics are unfiled from drafts in this browser and from cloud publications (after confirmation, using the same conflict checks as other cloud edits); the publications themselves are not deleted. Nothing is pushed to GitHub, deployed, or published to the public website."
+          : "Read-only: nothing on this page can change the Index, your cloud publications, or the public website."}
       </p>
     </section>
   );

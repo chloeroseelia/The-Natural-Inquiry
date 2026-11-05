@@ -93,7 +93,7 @@ function formatBytes(bytes) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-export default function EntryEditor({ initialDraft, taxonomy, onClose, onSave, onDelete, onReview, onPublish }) {
+export default function EntryEditor({ initialDraft, taxonomy, onClose, onSave, onDelete, onReview, onPublish, publishingEnabled = true, publishingDisabledNotice = "" }) {
   const [draft, setDraft] = useState({
     ...initialDraft,
     indexCategories: initialDraft.indexCategories || []
@@ -186,6 +186,10 @@ export default function EntryEditor({ initialDraft, taxonomy, onClose, onSave, o
   }
 
   async function handleReview() {
+    if (!publishingEnabled) {
+      setError(publishingDisabledNotice);
+      return;
+    }
     if (!draft.title.trim()) {
       setError("Add a title before reviewing this public update.");
       return;
@@ -228,6 +232,10 @@ export default function EntryEditor({ initialDraft, taxonomy, onClose, onSave, o
   }
 
   async function handlePublish() {
+    if (!publishingEnabled) {
+      setError(publishingDisabledNotice);
+      return;
+    }
     if (!reviewPlan) return;
     setPublishing(true);
     setError("");
@@ -560,13 +568,14 @@ export default function EntryEditor({ initialDraft, taxonomy, onClose, onSave, o
             </button>
             <button
               className="button button-publish-review"
-              disabled={reviewing || publishing || taxonomy.length === 0}
+              disabled={!publishingEnabled || reviewing || publishing || taxonomy.length === 0}
               onClick={handleReview}
               type="button"
             >
               <Icon name="preview" size={15} />
               {reviewing ? "Preparing review…" : "Review public changes"}
             </button>
+            {!publishingEnabled && <small className="unsaved-label" role="note">{publishingDisabledNotice}</small>}
             {draft.id && (
               <button
                 className="delete-draft-button"
@@ -586,7 +595,9 @@ export default function EntryEditor({ initialDraft, taxonomy, onClose, onSave, o
 
       {error && <p className="editor-error" role="alert">{error}</p>}
       <p className="editor-footer-note">
-        Publishing writes only to this local project folder. It does not push to GitHub or deploy to AWS.
+        {publishingEnabled
+          ? "Publishing writes only to this local project folder. It does not push to GitHub or deploy to AWS."
+          : publishingDisabledNotice}
       </p>
       {reviewPlan && (
         <div className="modal-backdrop" onMouseDown={(event) => {

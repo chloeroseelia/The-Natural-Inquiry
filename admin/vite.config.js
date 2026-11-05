@@ -7,9 +7,10 @@ import { localPublishingPlugin } from "./publish-site.js";
 const adminRoot = fileURLToPath(new URL(".", import.meta.url));
 const projectRoot = resolve(adminRoot, "..");
 
-export default defineConfig({
+export default defineConfig(({ command, isPreview }) => ({
   root: adminRoot,
-  base: "/admin/",
+  // Dev keeps the existing /admin/ path. The production build, and its local preview, use the root of its own Amplify app.
+  base: command === "build" || isPreview ? "/" : "/admin/",
   plugins: [react(), localPublishingPlugin(projectRoot)],
   server: {
     fs: {
@@ -23,4 +24,4 @@ export default defineConfig({
       input: resolve(adminRoot, "index.html")
     }
   }
-});
+}));

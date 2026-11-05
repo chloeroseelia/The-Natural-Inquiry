@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { deletePublication, listPublications, savePublication, seedPublicationsIfNeeded } from "./draft-storage.js";
-import { getExistingPublications } from "./publication-seeds.js";
+import { cloudContent } from "./cloud-repository.js";
 
 const FILTERS = ["All", "Published", "Drafts", "Archived"];
 const CATEGORIES = ["Essay", "Research project", "Field note", "Other"];
@@ -281,11 +280,17 @@ export default function PublicationsWorkspace({
   taxonomy,
   onEditorStateChange,
   requestedPublicationId,
-  onPublicationRequestHandled
+  onPublicationRequestHandled,
+  reloadSignal = 0,
+  syncSignal = 0,
+  onRetryCloud,
+  onSavePublication,
+  onDeletePublication
 }) {
   const [publications, setPublications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
+  const [loadFailed, setLoadFailed] = useState(false);
   const [filter, setFilter] = useState("All");
   const [query, setQuery] = useState("");
   const [current, setCurrent] = useState(null);
@@ -305,17 +310,22 @@ export default function PublicationsWorkspace({
 
   useEffect(() => {
     let active = true;
-    seedPublicationsIfNeeded(getExistingPublications())
-      .then(() => listPublications())
-      .then((items) => {
+    setLoading(true);
+    setLoadError("");
+    setLoadFailed(false);
+    // Shared with App.jsx, so the cloud is listed once. App resets the cache before bumping the retry signal.
+    cloudContent.load("publications")
+      .then(({ records, issues }) => {
         if (active) {
-          setPublications(items.sort((a, b) => (b.updatedAt || "").localeCompare(a.updatedAt || "")));
+          setPublications([...records].sort((a, b) => (b.updatedAt || "").localeCompare(a.updatedAt || "")));
+          if (issues.length) setLoadError(`${issues.length} cloud publication record(s) had data problems and may display incompletely.`);
           setLoading(false);
         }
       })
-      .catch((storageError) => {
+      .catch((cloudError) => {
         if (active) {
-          setLoadError(`The publication library could not be opened. ${storageError.message}`);
+          setLoadError(`The publication library could not be loaded from the cloud. ${cloudError.message}`);
+          setLoadFailed(true);
           setLoading(false);
         }
       });
@@ -323,7 +333,22 @@ export default function PublicationsWorkspace({
       active = false;
       if (autoSaveTimer.current) window.clearTimeout(autoSaveTimer.current);
     };
-  }, []);
+  }, [reloadSignal]);
+
+  // Pulls cache changes made outside this workspace (Subject Index filings) into the list, without
+  // a network fetch, so later saves here use the current revision instead of a stale baseline.
+  useEffect(() => {
+    if (!syncSignal) return undefined;
+    let active = true;
+    cloudContent.load("publications")
+      .then(({ records }) => {
+        if (active) setPublications([...records].sort((a, b) => (b.updatedAt || "").localeCompare(a.updatedAt || "")));
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [syncSignal]);
 
   useEffect(() => {
     if (loading || !requestedPublicationId) return;
@@ -336,80 +361,20 @@ export default function PublicationsWorkspace({
     onEditorStateChange?.(current ? (editorView === "preview" ? "Publication preview" : "Publication editor") : "");
   }, [current, editorView, onEditorStateChange]);
 
-  useEffect(() => {
-    if (!current || !dirty) return undefined;
-    if (!hasPublicationContent(current)) {
-      setSaveState("saved");
-      return undefined;
-    }
-    setSaveState("saving");
-    if (autoSaveTimer.current) window.clearTimeout(autoSaveTimer.current);
-    autoSaveTimer.current = window.setTimeout(async () => {
-      try {
-        const saved = { ...current, bodyHtml: sanitizeHtml(current.bodyHtml), updatedAt: new Date().toISOString() };
-        await savePublication(saved);
-        setPublications((items) => [saved, ...items.filter((item) => item.id !== saved.id)]);
-          if (currentRef.current === current) {
-            setCurrent(saved);
-            setDirty(false);
-            setSaveState("saved");
-            setError("");
-          }
-      } catch (saveError) {
-        setSaveState("error");
-        setError(`Autosave could not finish. ${saveError.message}`);
-      }
-    }, 650);
-    return () => window.clearTimeout(autoSaveTimer.current);
-  }, [current, dirty]);
+  // Saves are explicit: there is no autosave. Subject Index filing reconciliation arrives in Phase 4e.
 
   useEffect(() => {
     if (!current || editorView !== "edit" || !editorRef.current) return;
     editorRef.current.innerHTML = sanitizeHtml(current.bodyHtml) || "<p><br></p>";
   }, [current?.id, editorView]);
 
+  // Unsaved edits are lost on tab close, so warn the browser while the editor is dirty.
   useEffect(() => {
-    let active = true;
-    const normalizeFilings = (filings = []) => filings
-      .map((filing) => {
-        const category = taxonomy.find((item) => item.id === filing.id);
-        if (!category) return null;
-        return {
-          ...filing,
-          subjects: (filing.subjects || []).filter((subject) => category.subjects.includes(subject))
-        };
-      })
-      .filter(Boolean);
-
-    const normalizedPublications = publications.map((publication) => {
-      const indexCategories = normalizeFilings(publication.indexCategories || []);
-      return JSON.stringify(indexCategories) === JSON.stringify(publication.indexCategories || [])
-        ? publication
-        : { ...publication, indexCategories };
-    });
-    const changedPublications = normalizedPublications.filter((publication, index) => publication !== publications[index]);
-    if (!changedPublications.length) return undefined;
-
-    Promise.all(changedPublications.map((publication) => savePublication(publication)))
-      .then(() => {
-        if (!active) return;
-        setPublications(normalizedPublications);
-        if (current) {
-          const indexCategories = normalizeFilings(current.indexCategories || []);
-          if (JSON.stringify(indexCategories) !== JSON.stringify(current.indexCategories || [])) {
-            setCurrent({ ...current, indexCategories });
-            setDirty(true);
-          }
-        }
-      })
-      .catch((saveError) => {
-        if (active) setLoadError(`Index filing changes could not be saved to local publications. ${saveError.message}`);
-      });
-
-    return () => {
-      active = false;
-    };
-  }, [current, publications, taxonomy]);
+    if (!dirty) return undefined;
+    const warn = (event) => { event.preventDefault(); event.returnValue = ""; };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [dirty]);
 
   const filtered = useMemo(() => {
     const text = query.trim().toLowerCase();
@@ -432,7 +397,7 @@ export default function PublicationsWorkspace({
     setCurrent(publication);
     setEditorView("edit");
     setDirty(true);
-    setSaveState("saving");
+    setSaveState("unsaved");
     setError("");
   }
 
@@ -444,41 +409,35 @@ export default function PublicationsWorkspace({
     setError("");
   }
 
+  // Writes the open publication to the cloud. Nothing is written until the administrator saves;
+  // there is deliberately no autosave, so every cloud revision is an intentional action.
   async function saveNow() {
-    if (!current) return;
-    if (autoSaveTimer.current) window.clearTimeout(autoSaveTimer.current);
+    if (!current || saveState === "saving") return null;
     if (!hasPublicationContent(current)) {
       setError("Add a title, description, writing, or another publication detail before saving.");
       return null;
     }
     setSaveState("saving");
+    setError("");
     try {
-      const saved = { ...current, bodyHtml: sanitizeHtml(current.bodyHtml), updatedAt: new Date().toISOString() };
-      await savePublication(saved);
+      const saved = await onSavePublication({ ...current, bodyHtml: sanitizeHtml(current.bodyHtml), updatedAt: new Date().toISOString() });
       setPublications((items) => [saved, ...items.filter((item) => item.id !== saved.id)]);
       setCurrent(saved);
       setDirty(false);
       setSaveState("saved");
-      setError("");
       return saved;
     } catch (saveError) {
       setSaveState("error");
-      setError(`This publication could not be saved. ${saveError.message}`);
+      setError(`${saveError.message || "This publication could not be saved."} Your edits are still open here.`);
       return null;
     }
   }
 
   async function closeEditor() {
-    if (dirty) {
-      if (!hasPublicationContent(current)) {
-        setCurrent(null);
-        setDirty(false);
-        return;
-      }
-      const saved = await saveNow();
-      if (!saved) return;
-    }
+    if (saveState === "saving") return;
+    if (dirty && !window.confirm("You have unsaved changes that have not been saved to the cloud. Leave and discard them?")) return;
     setCurrent(null);
+    setDirty(false);
     setError("");
   }
 
@@ -491,31 +450,39 @@ export default function PublicationsWorkspace({
       archived: false,
       publishedAt: "",
       createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
+      updatedAt: new Date().toISOString(),
+      revision: undefined,
+      cloudUpdatedAt: undefined
     };
+    setLoadError("");
+    setLoadFailed(false);
     try {
-      await savePublication(copy);
-      setPublications((items) => [copy, ...items]);
-      openPublication(copy);
+      const saved = await onSavePublication(copy);
+      setPublications((items) => [saved, ...items.filter((item) => item.id !== saved.id)]);
+      openPublication(saved);
     } catch (saveError) {
       setLoadError(`The publication could not be duplicated. ${saveError.message}`);
     }
   }
 
   async function toggleArchive(publication) {
-    const updated = { ...publication, archived: !publication.archived, updatedAt: new Date().toISOString() };
+    setLoadError("");
+    setLoadFailed(false);
     try {
-      await savePublication(updated);
-      setPublications((items) => [updated, ...items.filter((item) => item.id !== updated.id)]);
+      const saved = await onSavePublication({ ...publication, archived: !publication.archived, updatedAt: new Date().toISOString() });
+      setPublications((items) => [saved, ...items.filter((item) => item.id !== saved.id)]);
     } catch (saveError) {
-      setLoadError(`The publication could not be updated. ${saveError.message}`);
+      setLoadError(`The publication could not be ${publication.archived ? "restored" : "archived"}. ${saveError.message}`);
     }
   }
 
   async function removePublication(publication) {
-    if (!window.confirm(`Delete “${publication.title || "Untitled publication"}” from this browser? This cannot be undone.`)) return;
+    const name = publication.title || "Untitled publication";
+    if (!window.confirm(`Permanently delete “${name}” from the cloud database?\n\nThis cannot be undone. Consider archiving it instead.`)) return;
+    setLoadError("");
+    setLoadFailed(false);
     try {
-      await deletePublication(publication.id);
+      await onDeletePublication(publication);
       setPublications((items) => items.filter((item) => item.id !== publication.id));
     } catch (deleteError) {
       setLoadError(`The publication could not be deleted. ${deleteError.message}`);
@@ -615,7 +582,7 @@ export default function PublicationsWorkspace({
           <button className="text-link" onClick={closeEditor} type="button"><Icon name="back" /> Back to publications</button>
           <div className="publication-save-indicator" role="status">
             <span className={`save-indicator-dot ${saveState}`} />
-            {saveState === "saving" ? "Saving…" : saveState === "error" ? "Not saved" : "Saved in this browser"}
+            {saveState === "saving" ? "Saving to the cloud…" : saveState === "error" ? "Not saved" : dirty ? "Unsaved changes" : "Saved to the cloud"}
           </div>
         </div>
         <div className="publication-editor-heading">
@@ -627,10 +594,10 @@ export default function PublicationsWorkspace({
             <button className={`button ${previewing ? "button-secondary" : "button-secondary"}`} onClick={() => setEditorView(previewing ? "edit" : "preview")} type="button">
               <Icon name={previewing ? "back" : "preview"} /> {previewing ? "Return to editing" : "Preview"}
             </button>
-            {!previewing && <button className="button button-primary" onClick={saveNow} type="button"><Icon name="save" /> {current.status === "Draft" ? "Save draft" : "Save changes"}</button>}
+            {!previewing && <button className="button button-primary" disabled={saveState === "saving"} onClick={saveNow} type="button"><Icon name="save" /> {saveState === "saving" ? "Saving…" : current.status === "Draft" ? "Save draft" : "Save changes"}</button>}
           </div>
         </div>
-        <p className="publication-local-note"><Icon name="check" size={14} /> Your work is saved only in this browser. Publication status here does not update the public website.</p>
+        <p className="publication-local-note"><Icon name="check" size={14} /> Changes are saved to the cloud only when you press Save. Publication status here does not update the public website.</p>
         {error && <p className="storage-warning" role="alert">{error}</p>}
 
         {previewing ? (
@@ -705,7 +672,7 @@ export default function PublicationsWorkspace({
                     <option>Draft</option><option>Published</option>
                   </select>
                 </label>
-                {current.status === "Published" && <p className="publication-status-note">This is a local workspace label only; it does not publish to the public site.</p>}
+                {current.status === "Published" && <p className="publication-status-note">Published here is a cloud workspace label only; it does not publish to the public site.</p>}
               </section>
 
               <section className="publication-settings-card">
@@ -780,9 +747,14 @@ export default function PublicationsWorkspace({
       </div>
       <div className="publication-library-note">
         <span className="notice-mark"><Icon name="check" size={14} /></span>
-        <span>Saved in this browser only. Changing a status here does not alter the public website.</span>
+        <span>Stored in the cloud database. Changing a status here does not alter the public website.</span>
       </div>
-      {loadError && <p className="storage-warning" role="alert">{loadError}</p>}
+      {loadError && (
+        <p className="storage-warning" role="alert">
+          {loadError}
+          {loadFailed && <> <button className="text-link" onClick={() => onRetryCloud?.()} type="button">Retry</button></>}
+        </p>
+      )}
 
       <div className="publication-library-controls">
         <div aria-label="Filter publications" className="filter-tabs publication-filter-tabs" role="group">
@@ -801,7 +773,7 @@ export default function PublicationsWorkspace({
       </div>
 
       {loading ? (
-        <p className="publication-empty-state">Opening your publication library…</p>
+        <p className="publication-empty-state">Loading publications from the cloud…</p>
       ) : filtered.length ? (
         <div className="publication-library-list">
           {filtered.map((publication) => (
@@ -840,7 +812,7 @@ export default function PublicationsWorkspace({
         </div>
       )}
       <p className="publication-library-footnote">
-        {publications.length} {publications.length === 1 ? "publication" : "publications"} in this browser library
+        {publications.length} {publications.length === 1 ? "publication" : "publications"} in the cloud library
       </p>
     </section>
   );
