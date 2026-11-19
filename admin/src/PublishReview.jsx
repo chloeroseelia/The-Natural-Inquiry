@@ -3,13 +3,33 @@ import { getDataClient } from "./cloud-client.js";
 
 export const PUBLIC_SITE_URL = "https://chloeroseelia.github.io/The-Natural-Inquiry/";
 
+// The Lambda returns JSON.stringify(result) for an a.json() field, so AppSync can deliver it
+// encoded twice (a JSON string containing a JSON string). Unwrap at most two layers.
 function parseResult(data, invalidMessage) {
-  if (typeof data !== "string") return data;
-  try {
-    return JSON.parse(data);
-  } catch {
-    throw new Error(invalidMessage);
+  let value = data;
+  for (let layer = 0; layer < 2 && typeof value === "string"; layer += 1) {
+    try {
+      value = JSON.parse(value);
+    } catch {
+      throw new Error(invalidMessage);
+    }
   }
+  if (typeof value === "string") throw new Error(invalidMessage);
+  return value;
+}
+
+// Names the first missing or malformed field, without echoing any record content.
+function findReviewProblem(result) {
+  if (!result || typeof result !== "object") return `response was ${result === null ? "empty" : typeof result}`;
+  if (result.dryRun !== true) return "dryRun";
+  if (result.wrote !== false) return "wrote";
+  if (!result.manifest) return "manifest";
+  const section = ["publications", "research", "profile"].find((key) => !Array.isArray(result.manifest[key]));
+  if (section) return `manifest.${section}`;
+  if (typeof result.reviewDigest !== "string" || !/^[0-9a-f]{64}$/.test(result.reviewDigest)) return "reviewDigest";
+  if (!result.changes) return "changes";
+  for (const key of ["excluded", "notes", "warnings"]) if (!Array.isArray(result[key])) return key;
+  return "";
 }
 
 function getMutation(client) {
@@ -25,13 +45,8 @@ export async function requestPublishReview(client = getDataClient()) {
   const { data, errors } = await mutation({ dryRun: true });
   if (errors?.length) throw new Error(errors.map((error) => error.message).join("; "));
   const result = parseResult(data, "The publishing backend returned an invalid review.");
-  if (!result || result.dryRun !== true || result.wrote !== false ||
-      !result.manifest || !Array.isArray(result.excluded) ||
-      typeof result.reviewDigest !== "string" || !/^[0-9a-f]{64}$/.test(result.reviewDigest) ||
-      !result.changes || !Array.isArray(result.notes) || !Array.isArray(result.warnings) ||
-      !["publications", "research", "profile"].every((key) => Array.isArray(result.manifest[key]))) {
-    throw new Error("The publishing backend returned an incomplete review.");
-  }
+  const problem = findReviewProblem(result);
+  if (problem) throw new Error(`The publishing backend returned an incomplete review (${problem}).`);
   return result;
 }
 

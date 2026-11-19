@@ -73,6 +73,11 @@ try {
   const fakeClient = { mutations: { publishSite: async (input) => { calls.push(input); return { data: JSON.stringify(reviewResult) }; } } };
   assert.deepEqual(await requestPublishReview(fakeClient), reviewResult);
   assert.deepEqual(calls, [{ dryRun: true }], "review only invokes dry-run");
+  const doubleEncoded = { mutations: { publishSite: async () => ({ data: JSON.stringify(JSON.stringify(reviewResult)) }) } };
+  assert.deepEqual(await requestPublishReview(doubleEncoded), reviewResult, "a twice-encoded AWSJSON review is unwrapped");
+  const tripleEncoded = { mutations: { publishSite: async () => ({ data: JSON.stringify(JSON.stringify(JSON.stringify(reviewResult))) }) } };
+  await assert.rejects(requestPublishReview(tripleEncoded), /invalid review/, "no more than two layers are unwrapped");
+  await assert.rejects(requestPublishReview({ mutations: { publishSite: async () => ({ data: { ...reviewResult, warnings: undefined } }) } }), /incomplete review \(warnings\)/, "names the malformed field");
   await assert.rejects(requestPublishReview({ mutations: {} }), /not configured/);
   await assert.rejects(requestPublishReview({ mutations: { publishSite: async () => ({ errors: [{ message: "denied" }] }) } }), /denied/);
   await assert.rejects(requestPublishReview({ mutations: { publishSite: async () => ({ data: "not json" }) } }), /invalid review/);
