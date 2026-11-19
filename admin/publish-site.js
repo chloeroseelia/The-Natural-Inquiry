@@ -260,6 +260,9 @@ function createArticlePage(draft, url, mediaFile) {
     <meta name="description" content="${description}">
     <meta name="theme-color" content="#f7f5ee">
     <title>${title} — The Natural Inquiry</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&amp;family=DM+Sans:wght@400;500;600;700&amp;family=Playfair+Display:ital,wght@0,500;0,600;1,500;1,600&amp;display=swap">
     <link rel="stylesheet" href="../styles.css">
     <link rel="icon" href="../favicon.svg" type="image/svg+xml">
     <meta property="og:type" content="article">
