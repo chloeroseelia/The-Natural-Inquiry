@@ -261,6 +261,13 @@ function createArticlePage(draft, url, mediaFile) {
     <meta name="theme-color" content="#f7f5ee">
     <title>${title} — The Natural Inquiry</title>
     <link rel="stylesheet" href="../styles.css">
+    <link rel="icon" href="../favicon.svg" type="image/svg+xml">
+    <meta property="og:type" content="article">
+    <meta property="og:site_name" content="The Natural Inquiry">
+    <meta property="og:title" content="${title} — The Natural Inquiry">
+    <meta property="og:description" content="${description}">
+    <meta property="og:image" content="https://chloeroseelia.github.io/The-Natural-Inquiry/images/og-image.jpg">
+    <meta name="twitter:card" content="summary_large_image">
     <script src="../natural-inquiry-published-entries.js" defer></script>
     <script src="../natural-inquiry-index-data.js" defer></script>
     <script src="../natural-inquiry-subject-links.js" defer></script>
