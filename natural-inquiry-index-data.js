@@ -134,3 +134,49 @@ const naturalInquiryWritings = [
     status: "Sample placeholder"
   }
 ];
+
+window.NaturalInquiryIndexTaxonomy = naturalInquiryIndexCategories.map(({ id, title, subjects }) => ({
+  id,
+  title,
+  subjects: [...subjects]
+}));
+
+for (const publishedEntry of window.NaturalInquiryPublishedEntries || []) {
+  if (!naturalInquiryWritings.some((writing) => writing.url === publishedEntry.url)) {
+    naturalInquiryWritings.push({
+      title: publishedEntry.title,
+      type: publishedEntry.type,
+      description: publishedEntry.description,
+      url: publishedEntry.url,
+      year: publishedEntry.year
+    });
+  }
+
+  for (const filing of publishedEntry.filings || []) {
+    const category = naturalInquiryIndexCategories.find((entry) => entry.id === filing.categoryId);
+    if (!category) continue;
+
+    const relatedWriting = category.relatedWriting || (category.relatedWriting = []);
+    if (!relatedWriting.some((writing) => writing.url === publishedEntry.url)) {
+      relatedWriting.push({
+        title: publishedEntry.title,
+        type: publishedEntry.type,
+        description: publishedEntry.description,
+        url: publishedEntry.url
+      });
+    }
+
+    category.subjectWriting ||= {};
+    for (const subject of filing.subjects || []) {
+      const subjectWriting = category.subjectWriting[subject] || (category.subjectWriting[subject] = []);
+      if (!subjectWriting.some((writing) => writing.url === publishedEntry.url)) {
+        subjectWriting.push({
+          title: publishedEntry.title,
+          type: publishedEntry.type,
+          description: publishedEntry.description,
+          url: publishedEntry.url
+        });
+      }
+    }
+  }
+}
