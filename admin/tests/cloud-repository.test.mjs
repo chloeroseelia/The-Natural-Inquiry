@@ -29,9 +29,9 @@ function storedInCloud(model, local) {
 
 const fixtures = {
   seededPublication: { id: "existing-publication-seaweed-made-simple", title: "Seaweed Made Simple", subtitle: "Quick meals", category: "Essay", status: "Published", archived: false, publishedAt: "", indexCategories: [], references: [], bodyHtml: "<p>Body</p>", sourcePage: "writing/seaweed-made-simple.html", sourceDocumentName: "Seaweed Made Simple.pdf", createdAt: null, updatedAt: null },
-  editedPublication: { id: "pub-uuid-1", title: "Edited", subtitle: "s", category: "Field note", status: "Draft", archived: true, publishedAt: "2024-05-01", indexCategories: [{ id: "a", subjects: ["x", "y"] }], references: [{ id: "r1", title: "Ref", url: "https://example.org" }], bodyHtml: "<p>é — “quotes”</p>", sourcePage: "", sourceDocumentName: "", createdAt: "2024-01-02T03:04:05.000Z", updatedAt: "2024-06-07T08:09:10.000Z" },
+  editedPublication: { id: "pub-uuid-1", title: "Edited", subtitle: "s", summary: "Legacy summary", category: "Field note", status: "Draft", archived: true, publishedAt: "2024-05-01", indexCategories: [{ id: "a", subjects: ["x", "y"] }], references: [{ id: "r1", title: "Ref", url: "https://example.org" }], bodyHtml: "<p>é — “quotes”</p>", sourcePage: "", sourceDocumentName: "", createdAt: "2024-01-02T03:04:05.000Z", updatedAt: "2024-06-07T08:09:10.000Z" },
   seededResearch: { id: "existing-garibaldi", kind: "project", sourcePath: "research/garibaldi.html", isExisting: true, status: "Past", title: "Garibaldi", subtitle: "Intro", overviewTitle: "Overview", overview: "Text", note: "Note", updatedAt: null },
-  newResearch: { id: "11111111-2222-3333-4444-555555555555", kind: "project", sourcePath: "", isExisting: false, status: "Planned", title: "New", subtitle: "S", overviewTitle: "", overview: "", note: "", updatedAt: "2025-02-03T04:05:06.000Z" },
+  newResearch: { id: "11111111-2222-3333-4444-555555555555", kind: "project", sourcePath: "", isExisting: false, status: "Planned", title: "New", subtitle: "S", overviewTitle: "", overview: "", content: "Legacy supplementary content", note: "", updatedAt: "2025-02-03T04:05:06.000Z" },
   profileIntro: { id: "profile-introduction", kind: "profile-introduction", sourcePath: "profile.html", isExisting: true, title: "Intro", summary: "Hi", content: "Welcome", updatedAt: null },
   profileSection: { id: "profile-biography-title", kind: "profile", sourcePath: "profile.html", isExisting: true, title: "Biography", summary: "", content: "Bio text", updatedAt: "2025-03-04T05:06:07.000Z" }
 };
@@ -66,6 +66,16 @@ pass("round trip local->cloud->local and cloud->local->cloud for all three model
   assert.equal(seeded.updatedAt, null, "no invented timestamps for seeded records");
   const withTime = cloudToLocal("Publication", { ...cloud, publishedAt: "2024-05-01T10:30:00.000Z" }).record;
   assert.equal(withTime.publishedAt, "2024-05-01T10:30:00.000Z");
+  const offsetTime = classifyRecord("Publication", {
+    ...fixtures.editedPublication,
+    publishedAt: "2024-05-01T12:30:00+02:00"
+  }, new Map());
+  assert.equal(offsetTime.mapped.publishedAt, "2024-05-01T10:30:00.000Z", "explicit offsets normalize to UTC");
+  for (const publishedAt of ["2024-02-30", "2024-05-01T10:30:00", "May 1, 2024"]) {
+    const result = classifyRecord("Publication", { ...fixtures.editedPublication, publishedAt }, new Map());
+    assert.ok(result.blockers.some((blocker) => blocker.includes("publishedAt has an unparseable date")),
+      `${publishedAt} must be blocked rather than shifted or interpreted in local time`);
+  }
   pass("publication field names, dates, archived flag, no invented timestamps");
 }
 
@@ -84,6 +94,20 @@ pass("round trip local->cloud->local and cloud->local->cloud for all three model
   const noStage = cloudToLocal("ResearchProject", { id: "r", title: "T", projectStage: null });
   assert.equal(noStage.record.status, "In progress");
   assert.equal(noStage.warnings.length, 1);
+  const unknownStage = classifyRecord("ResearchProject", { ...fixtures.newResearch, status: "Paused" }, new Map());
+  assert.ok(unknownStage.blockers.some((blocker) => blocker.includes("Project stage")));
+  const conflictingIntro = classifyRecord("ResearchProject", {
+    ...fixtures.newResearch,
+    subtitle: "Introduction",
+    summary: "Different legacy summary"
+  }, new Map());
+  assert.ok(conflictingIntro.blockers.some((blocker) => blocker.includes("Both subtitle and summary")));
+  const customProfile = classifyRecord("ProfileContent", {
+    id: "custom-profile-section",
+    title: "Custom section",
+    content: "Text"
+  }, new Map());
+  assert.ok(customProfile.blockers.some((blocker) => blocker.includes("no known sort order")));
   const pdf = cloudToLocal("Publication", { id: "p", title: "T", category: "E", contentFormat: "PDF" });
   assert.equal(pdf.warnings.length, 1);
   pass("enum conversions: status, archived, projectStage, contentFormat");

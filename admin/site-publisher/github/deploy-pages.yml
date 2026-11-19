@@ -1,0 +1,81 @@
+# TEMPLATE - inactive until copied to .github/workflows/deploy-pages.yml on the public repo's
+# main branch, together with publish-content.yml, and Settings > Pages > Source is set to
+# "GitHub Actions". Never copy the admin amplify.yml into the public site.
+#
+# Why this exists: with Pages deploying from GitHub Actions, a push to main no longer rebuilds
+# the site by itself. This workflow deploys on every push to main (hand edits), and
+# publish-content.yml calls it after committing dashboard-generated pages. A push made with
+# GITHUB_TOKEN does not start other workflows, so the two never deploy the same commit twice.
+#
+# Only an allowlist of public site files is deployed, so admin/, amplify/, package files and
+# other repository files are never served even if they are later merged into main.
+#
+# Action pins verified against the official Git refs API on 2026-11-18:
+# actions/checkout v4.2.2 -> 11bd71901bbe5b1630ceea73d27597364c9af683
+# actions/upload-pages-artifact v3.0.1 -> 56afc609e74202658d3ffba0e8f6dda462b719fa
+# actions/deploy-pages v4.0.5 -> d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e
+name: Deploy site to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out the latest main
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          # Always the newest main: when called after a publish commit, github.sha is the
+          # older commit the dispatch started from.
+          ref: main
+          path: site
+          persist-credentials: false
+
+      - name: Stage allowlisted public files
+        run: |
+          set -euo pipefail
+          mkdir _public
+          cd site
+          shopt -s nullglob
+          for f in *.html *.css *.js *.svg *.xml *.pdf *.txt; do cp -- "$f" ../_public/; done
+          for d in images writing research; do
+            if [ -d "$d" ]; then cp -R -- "$d" ../_public/; fi
+          done
+          # No Jekyll processing: files are served exactly as committed.
+          touch ../_public/.nojekyll
+          cd ..
+          test -f _public/index.html || { echo "index.html is missing from the staged site"; exit 1; }
+          find _public -type l -print -quit | grep -q . && { echo "Refusing to deploy symlinks"; exit 1; } || true
+          echo "Staged $(find _public -type f | wc -l) files."
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3.0.1
+        with:
+          path: _public
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4.0.5

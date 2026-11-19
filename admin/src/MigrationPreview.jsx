@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { downloadLocalBackup, runMigrationPreview } from "./migration-preview.js";
+import { summarizeMigrationAccounting } from "./migration-accounting.js";
+import { formatExcludedRecord } from "./migration-inspection.js";
 import MigrationRunner from "./MigrationRunner.jsx";
 
 const CATEGORIES = [
@@ -65,6 +67,25 @@ function RecordDetails({ record }) {
   );
 }
 
+function ExcludedRecord({ item, index }) {
+  const missingId = item.id === null || item.id === undefined || item.id === "";
+  const label = missingId ? `Missing ID (record ${index + 1})` : String(item.id);
+  return (
+    <details className="migration-record migration-excluded-record">
+      <summary>
+        <span className="migration-badge">excluded</span>
+        <strong>{label}</strong>
+        <small>Inspect source record</small>
+      </summary>
+      <div className="migration-record-body">
+        <p><b>ID:</b> {missingId ? "(missing)" : String(item.id)}</p>
+        <p className="migration-warning"><b>Reason:</b> {item.reason}</p>
+        <pre className="migration-inspection-data">{formatExcludedRecord(item.record)}</pre>
+      </div>
+    </details>
+  );
+}
+
 export default function MigrationPreview({ onClose }) {
   const [running, setRunning] = useState(false);
   const [result, setResult] = useState(null);
@@ -91,15 +112,9 @@ export default function MigrationPreview({ onClose }) {
     }
   }
 
-  const totals = { new: 0, identical: 0, conflict: 0, oversized: 0, blocked: 0, local: 0 };
-  for (const model of result?.models ?? []) {
-    for (const record of model.records) {
-      totals[record.category] += 1;
-      totals.local += 1;
-      if (record.blockers.length && record.category !== "oversized") totals.blocked += 1;
-    }
-  }
-  const unsafe = totals.oversized + totals.blocked;
+  const accounting = result && !result.fatal
+    ? summarizeMigrationAccounting(result.storeCounts, result.models)
+    : null;
 
   return (
     <main className="auth-page migration-page">
@@ -124,7 +139,8 @@ export default function MigrationPreview({ onClose }) {
         {backupState?.state === "ok" && (
           <p className="migration-ok">
             Backup downloaded: {backupState.counts.publications} publications, {backupState.counts.research} research,
-            {" "}{backupState.counts.profile} profile, {backupState.counts.drafts} drafts.
+            {" "}{backupState.counts.profile} profile, {backupState.counts.drafts} drafts, and {backupState.counts.metadata} metadata records.
+            {" "}Included stores: publications, research, profile, drafts, metadata.
           </p>
         )}
         {backupState?.state === "error" && <p className="migration-blocker">Backup failed: {backupState.message}</p>}
@@ -135,15 +151,31 @@ export default function MigrationPreview({ onClose }) {
             <div className="migration-summary">
               <h2>Overall summary</h2>
               <p>
-                {totals.local} local record{totals.local === 1 ? "" : "s"} checked:
-                {" "}{totals.new} new, {totals.identical} identical, {totals.conflict} conflict, {totals.oversized} oversized.
+                IndexedDB stores: {accounting.stores.publications} publications, {accounting.stores.research} research,
+                {" "}{accounting.stores.profile} profile, {accounting.stores.drafts} drafts (not migration inputs),
+                {" "}{accounting.stores.metadata} metadata.
               </p>
-              <p className={unsafe ? "migration-blocker" : "migration-ok"}>
-                {unsafe
-                  ? `${unsafe} record${unsafe === 1 ? "" : "s"} cannot be migrated safely yet. Expand the flagged records below.`
-                  : "No records are blocked from migration."}
+              <p>
+                Migration source records: {accounting.overall.sourceRecords} across publications, research, and profile.
+                {" "}Inputs: {accounting.overall.migrationInputs}; eligible (new or identical): {accounting.overall.eligible};
+                {" "}excluded: {accounting.overall.excluded}; blocked: {accounting.overall.blocked};
+                {" "}conflicts: {accounting.overall.conflicts}; would be created: {accounting.overall.willCreate};
+                {" "}unavailable for classification: {accounting.overall.unavailable}.
               </p>
-              {totals.conflict > 0 && (
+              <h3>Migration stages</h3>
+              <div className="migration-stage-accounting">
+                {Object.values(accounting.stages).map((stage) => (
+                  <section key={stage.id}>
+                    <strong>{stage.label}</strong>
+                    <span>{stage.sourceRecords} source · {stage.eligible} eligible · {stage.excluded} excluded · {stage.blocked} blocked · {stage.conflicts} conflicts · {stage.willCreate} would create</span>
+                    {stage.unavailable > 0 && <span className="migration-blocker">{stage.unavailable} unavailable for classification</span>}
+                  </section>
+                ))}
+              </div>
+              {(accounting.overall.blocked || accounting.overall.excluded || accounting.overall.conflicts || accounting.overall.unavailable) > 0 && (
+                <p className="migration-blocker">Review excluded, blocked, conflicting, or unavailable records before running their stage.</p>
+              )}
+              {accounting.overall.conflicts > 0 && (
                 <p className="migration-warning">Conflicts are never overwritten automatically; each needs an explicit decision in a later step.</p>
               )}
               <p>Generated {new Date(result.generatedAt).toLocaleString()}.</p>
@@ -154,11 +186,14 @@ export default function MigrationPreview({ onClose }) {
             {result.models.map((model) => (
               <section className="migration-model" key={model.model}>
                 <h2>{model.label} <small>({model.model})</small></h2>
+                <p>
+                  {model.sourceCount} source records; {model.sourceCount - model.skipped.length} migration inputs;
+                  {" "}{model.skipped.length} excluded; {model.cloudCount} in cloud.
+                </p>
                 {model.error ? (
                   <p className="migration-blocker">Error: {model.error}</p>
                 ) : (
                   <>
-                    <p>{model.records.length} local, {model.cloudCount} in cloud.</p>
                     <ul className="migration-counts">
                       {CATEGORIES.map((category) => (
                         <li key={category.key} title={category.hint}>
@@ -167,12 +202,12 @@ export default function MigrationPreview({ onClose }) {
                         </li>
                       ))}
                     </ul>
-                    {model.skipped.map((item) => (
-                      <p className="migration-warning" key={item.id}>Skipped {item.id}: {item.reason}</p>
-                    ))}
                     {model.records.map((record) => <RecordDetails key={record.id} record={record} />)}
                   </>
                 )}
+                {model.skipped.map((item, index) => (
+                  <ExcludedRecord item={item} index={index} key={`${item.id ?? "missing"}-${index}`} />
+                ))}
               </section>
             ))}
           </>

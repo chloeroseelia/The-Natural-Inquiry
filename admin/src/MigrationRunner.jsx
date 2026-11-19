@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { MIGRATION_ORDER, summarizeReport } from "./migration-run.js";
+import { MIGRATION_STAGES, summarizeMigrationAccounting } from "./migration-accounting.js";
 import { runLocalToCloudMigration } from "./migration-preview.js";
 
 const STATUS_LABELS = {
@@ -17,10 +18,7 @@ function preview(value) {
   return text.length > 160 ? `${text.slice(0, 160)}…` : text;
 }
 
-const STAGES = [
-  { id: "stage1", label: "Stage 1: Profile content and Research projects", models: ["ProfileContent", "ResearchProject"] },
-  { id: "stage2", label: "Stage 2: Publications", models: ["Publication"] }
-];
+const STAGES = MIGRATION_STAGES;
 
 // `result` is the output of the read-only preview; the button is only offered after it ran.
 export default function MigrationRunner({ result, onFinished }) {
@@ -33,14 +31,16 @@ export default function MigrationRunner({ result, onFinished }) {
   const stage = STAGES.find((item) => item.id === stageId);
   const selectedModels = stage.models;
   const selectedResults = result.models.filter((model) => selectedModels.includes(model.model));
+  const stageAccounting = summarizeMigrationAccounting(result.storeCounts, result.models).stages[stage.id];
   const records = selectedResults.flatMap((model) => model.records);
   const modelErrors = selectedResults.filter((model) => model.error);
   const toCreate = records.filter((record) => record.category === "new" && !record.blockers.length).length;
   const toSkip = records.filter((record) => record.category === "identical").length;
   const conflicts = records.filter((record) => record.category === "conflict").length;
   const blocked = records.filter((record) => record.category === "oversized" || record.blockers.length);
+  const skippedSource = selectedResults.reduce((count, model) => count + (model.skipped?.length || 0), 0);
 
-  const cannotStart = running || Boolean(report) || toCreate === 0 || conflicts > 0 || modelErrors.length > 0;
+  const cannotStart = running || Boolean(report) || toCreate === 0 || conflicts > 0 || modelErrors.length > 0 || skippedSource > 0;
 
   async function start() {
     setRunning(true);
@@ -58,7 +58,12 @@ export default function MigrationRunner({ result, onFinished }) {
     setRunning(false);
   }
 
-  const totals = report ? summarizeReport(report) : null;
+  const totals = report
+    ? {
+        ...summarizeReport(report),
+        skippedSource: report.models.reduce((count, model) => count + (model.skipped?.length || 0), 0)
+      }
+    : null;
 
   return (
     <section className="migration-model migration-runner">
@@ -77,6 +82,11 @@ export default function MigrationRunner({ result, onFinished }) {
           </fieldset>
           <p>
             <b>Models included in this run:</b> {selectedModels.join(", ")}. Other models are not read, looked up, or written.
+          </p>
+          <p>
+            <b>This stage:</b> {stageAccounting.sourceRecords} source records, {stageAccounting.eligible} eligible,
+            {" "}{stageAccounting.excluded} excluded, {stageAccounting.blocked} blocked, {stageAccounting.conflicts} conflicts,
+            {" "}{stageAccounting.willCreate} would be created.
           </p>
           <p className="migration-warning">
             <b>This will create records in the cloud database.</b> Only missing records are created, in the order
@@ -97,6 +107,11 @@ export default function MigrationRunner({ result, onFinished }) {
           ))}
           {modelErrors.length > 0 && (
             <p className="migration-blocker">The preview had errors; fix them and re-run the preview before migrating.</p>
+          )}
+          {skippedSource > 0 && (
+            <p className="migration-blocker">
+              {skippedSource} local record{skippedSource === 1 ? " is" : "s are"} excluded from this stage. Resolve the listed records before migrating.
+            </p>
           )}
           {toCreate === 0 && conflicts === 0 && modelErrors.length === 0 && (
             <p className="migration-ok">Nothing to create. All migratable records already exist in the cloud.</p>
@@ -129,10 +144,15 @@ export default function MigrationRunner({ result, onFinished }) {
             {" "}({report.models.map((model) => `${model.model}: ${model.results.length}`).join("; ")}).
             Models not listed were not touched.
           </p>
-          <p className={totals.failed || totals.conflict ? "migration-blocker" : "migration-ok"}>
+          <p className={totals.failed || totals.conflict ? "migration-blocker" : totals.skippedSource ? "migration-warning" : "migration-ok"}>
             {totals.created} created, {totals.skipped} skipped, {totals.conflict} conflict, {totals.failed} failed,
-            {" "}{totals.blocked} blocked, {totals.not_attempted} not attempted.
+            {" "}{totals.blocked} blocked, {totals.not_attempted} not attempted, {totals.skippedSource} local records excluded.
           </p>
+          {report.models.flatMap((model) => (model.skipped || []).map((item) => (
+            <p className="migration-warning" key={`${model.model}-${item.id}`}>
+              {model.model}: excluded {item.id} — {item.reason}
+            </p>
+          )))}
           {report.stopped && <p className="migration-blocker">Stopped: {report.stopped}. Remaining records were not touched.</p>}
           <p>
             Verification: each created record was read back from the cloud and compared field by field. Run the

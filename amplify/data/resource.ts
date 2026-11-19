@@ -1,6 +1,14 @@
 import { a, defineData, type ClientSchema } from "@aws-amplify/backend";
+import { publishSite } from "../functions/publish-site/resource.js";
 
 const schema = a.schema({
+  // Administrators only. dryRun defaults to true unless explicitly false.
+  publishSite: a
+    .mutation()
+    .arguments({ dryRun: a.boolean(), reviewDigest: a.string() })
+    .returns(a.json())
+    .authorization((allow) => allow.group("Administrators"))
+    .handler(a.handler.function(publishSite)),
   Publication: a
     .model({
       title: a.string().required(),
@@ -56,7 +64,7 @@ const schema = a.schema({
       revision: a.integer()
     })
     .authorization((allow) => allow.group("Administrators"))
-});
+}).authorization((allow) => allow.resource(publishSite).to(["query"]));
 
 export type Schema = ClientSchema<typeof schema>;
 

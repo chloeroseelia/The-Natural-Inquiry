@@ -1,0 +1,14 @@
+{
+  "name": "the-natural-inquiry-site-publisher",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Standalone static-site generator for published Natural Inquiry content. Reads a sanitized manifest only; never touches AWS.",
+  "scripts": {
+    "test": "node tests/site-publisher.test.mjs",
+    "generate": "node generate-cli.mjs"
+  },
+  "dependencies": {
+    "parse5": "^7.3.0"
+  }
+}

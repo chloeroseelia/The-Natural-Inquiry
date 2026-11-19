@@ -2,10 +2,10 @@ import { createCloudRecord, getCloudRecord, listAllRecords } from "./cloud-clien
 import { classifyRecord } from "./cloud-mapping.js";
 import { runMigration } from "./migration-run.js";
 import {
-  listDrafts,
   listProfileEntries,
   listPublications,
-  listResearch
+  listResearch,
+  readAllLocalStores
 } from "./draft-storage.js";
 
 // Only read-only list functions are imported; no save, delete, or seed function is used here.
@@ -15,18 +15,28 @@ const SOURCES = [
   { model: "ProfileContent", label: "Profile content", readLocal: listProfileEntries }
 ];
 
+export function partitionMigrationRecords(model, records) {
+  if (model !== "ResearchProject") return { records, skipped: [] };
+  const skipped = [];
+  const included = [];
+  for (const record of records) {
+    if (record?.kind && record.kind !== "project") {
+      skipped.push({
+        id: record.id ?? null,
+        reason: `Stored with kind "${String(record.kind)}", not a research project.`,
+        record
+      });
+    } else {
+      included.push(record);
+    }
+  }
+  return { records: included, skipped };
+}
+
 export async function readLocalForModel(model) {
   const source = SOURCES.find((item) => item.model === model);
-  let records = await source.readLocal();
-  let skipped = [];
-  if (model === "ResearchProject") {
-    // Legacy profile entries can linger in the research store; they belong to ProfileContent.
-    skipped = records
-      .filter((record) => record.kind && record.kind !== "project")
-      .map((record) => ({ id: record.id, reason: `Stored with kind "${record.kind}", not a research project.` }));
-    records = records.filter((record) => !record.kind || record.kind === "project");
-  }
-  return { records, skipped };
+  if (!source) throw new Error(`Unknown migration model: ${model}`);
+  return partitionMigrationRecords(model, await source.readLocal());
 }
 
 // Creates missing cloud records only. Local IndexedDB is read, never written.
@@ -40,19 +50,31 @@ export function runLocalToCloudMigration(models, onProgress) {
 }
 
 export async function runMigrationPreview() {
+  const { publications, research, profile, drafts, metadata } = await readAllLocalStores();
+  const localByModel = {
+    Publication: publications,
+    ResearchProject: research,
+    ProfileContent: profile
+  };
   const models = [];
 
   for (const source of SOURCES) {
-    const entry = { model: source.model, label: source.label, records: [], skipped: [], cloudCount: 0, error: null };
+    const partition = partitionMigrationRecords(source.model, localByModel[source.model]);
+    const entry = {
+      model: source.model,
+      label: source.label,
+      records: [],
+      skipped: partition.skipped,
+      sourceCount: localByModel[source.model].length,
+      cloudCount: 0,
+      error: null
+    };
     try {
-      const local = await readLocalForModel(source.model);
-      const localRecords = local.records;
-      entry.skipped = local.skipped;
       const cloudRecords = await listAllRecords(source.model);
       entry.cloudCount = cloudRecords.length;
       const cloudById = new Map(cloudRecords.map((record) => [record.id, record]));
 
-      entry.records = localRecords
+      entry.records = partition.records
         .map((record) => classifyRecord(source.model, record, cloudById))
         .sort((a, b) => String(a.title).localeCompare(String(b.title)));
     } catch (error) {
@@ -61,7 +83,17 @@ export async function runMigrationPreview() {
     models.push(entry);
   }
 
-  return { generatedAt: new Date().toISOString(), models };
+  return {
+    generatedAt: new Date().toISOString(),
+    storeCounts: {
+      publications: publications.length,
+      research: research.length,
+      profile: profile.length,
+      drafts: drafts.length,
+      metadata: metadata.length
+    },
+    models
+  };
 }
 
 function blobToBase64(blob) {
@@ -91,14 +123,8 @@ async function serialize(value) {
   return value;
 }
 
-export async function buildLocalBackup() {
-  const [publications, research, profile, drafts] = await Promise.all([
-    listPublications(),
-    listResearch(),
-    listProfileEntries(),
-    listDrafts()
-  ]);
-
+export async function createLocalBackup({ publications, research, profile, drafts, metadata }) {
+  const includedStores = ["publications", "research", "profile", "drafts", "metadata"];
   return serialize({
     app: "The Natural Inquiry admin dashboard",
     kind: "indexeddb-backup",
@@ -108,10 +134,16 @@ export async function buildLocalBackup() {
       publications: publications.length,
       research: research.length,
       profile: profile.length,
-      drafts: drafts.length
+      drafts: drafts.length,
+      metadata: metadata.length
     },
-    stores: { publications, research, profile, drafts }
+    includedStores,
+    stores: { publications, research, profile, drafts, metadata }
   });
+}
+
+export async function buildLocalBackup() {
+  return createLocalBackup(await readAllLocalStores());
 }
 
 export async function downloadLocalBackup() {

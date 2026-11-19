@@ -22,9 +22,40 @@ To check a production build:
 npm run build
 ```
 
-The static build is written to `admin/dist/`. It is not connected to AWS
-Amplify or deployed by this project yet. Local publishing currently works only
-through the Vite development server.
+The static build is written to `admin/dist/`. It uses the root-level
+`amplify_outputs.json` to configure the Amplify client and requires an
+authenticated member of the Administrators group. The separate local publishing
+workflow works only through the Vite development server.
+
+## Cloud connectivity check
+
+Authenticated Administrators can open `#cloud-check` on the dashboard URL and
+select **Run read-only check** to list record IDs and display counts for the
+three cloud content models. It does not test write access. Storage diagnostics
+and migration tools remain available only in local development.
+
+## Publishing to the website
+
+The **Publish** section has two steps:
+
+1. **Review changes** runs a dry run. It lists the publications and research
+   projects that will go public, the pages that will be generated, what changed
+   since the last publish, and any records left out. Nothing is published.
+2. After ticking the confirmation box, **Publish to website** sends that exact
+   review. The backend refuses if any content changed since the review; run the
+   review again in that case.
+
+On success the backend stores the cleaned-up content and asks GitHub to run the
+`publish-content.yml` workflow, which commits the generated pages to `main` and
+deploys GitHub Pages. The site usually updates within 2–5 minutes. A success
+message means GitHub accepted the request; the Actions tab shows whether the
+build finished.
+
+Only cloud records marked Published are included. PDF uploads, images and the
+Profile page are not published yet, and pages written by hand are never
+overwritten. Publishing works only after the backend is deployed and the GitHub
+workflows are installed; see `admin/site-publisher/README.md`. Until then, the
+dashboard reports that the website was not updated.
 
 ## Creating a local draft
 
@@ -36,7 +67,7 @@ and optionally choose specific subjects. These choices come from
 Titles, descriptions, Index selections, writing, and PDFs can be saved as
 drafts in this browser using IndexedDB. Drafts are available only in the same
 browser profile on this device; clearing browser data can remove them. There is
-no account, encryption, or cloud backup, so do not store sensitive or embargoed
+no application-managed encryption or cloud backup for these drafts, so do not store sensitive or embargoed
 work here and keep another copy of important files.
 
 ### Review and publish locally
@@ -53,56 +84,35 @@ AWS. Review the generated files in VS Code, then use your usual Git and
 deployment workflow separately. The production dashboard build does not include
 a publishing API.
 
-The Overview and Publications library now use the two existing public essays:
-**The Choice to Sail Away** and **Seaweed Made Simple: Quick, Affordable Meals
-for Busy Students**. The first is loaded from its existing article page; the
-second is represented by its existing article page and supplied PDF. The sample
-**Birds as Neighbors** page is intentionally excluded because that page is
-explicitly marked as illustrative placeholder content. Other sample dashboard
-projects and activity have been removed.
+The Overview combines cloud publications with local browser drafts.
 
 ## Publications library
 
 The **Publications** sidebar opens a separate editorial library. Create a
 publication to use the document-style editor, formatting tools, Index subject
 tags, references, publication date, and an article preview. The library can
-search and filter browser-saved publications, and supports editing, duplicating,
+search and filter cloud publications, and supports editing, duplicating,
 archiving/restoring, and confirmed deletion.
 
-Publication records are stored in the same local IndexedDB database as entry
-drafts, in a separate store. On first setup, the two existing essays are added
-to an empty publication library without changing their public pages or PDFs.
-They remain in this browser profile after reload;
-clearing browser data removes them. Autosave runs as you edit, and **Save draft**
-also saves immediately. The editor preview follows the public writing pages'
-article layout, but publication status is only a local workspace label. This
-feature does not alter public HTML, publish to the website, or deploy to AWS.
-No additional packages are required.
+Publication records are read from and saved to Amplify Data. Autosave runs as
+you edit, and **Save draft** also saves immediately. Publication status is a
+cloud workspace label; changing it does not update the public website.
 
 ## Research workspace
 
-The **Research projects** section is seeded from the four existing pages in
-`research/`. It supports searching, previewing, and saving edited copies of
-those entries, as well as creating new research project drafts. Drafts are
-stored in this browser's IndexedDB and persist across reloads.
-
-Research edits are not yet synced to AWS or written to the public HTML pages.
-The initial project page data is read from the existing HTML; edits in the
-workspace remain local until an authenticated cloud and publishing workflow is
-implemented. No public-site files are modified by this workspace, and it adds
-no dependencies.
+The **Research projects** section reads projects from Amplify Data. It supports
+searching, previewing, editing, creating, and deleting cloud projects. Changes
+do not modify the public HTML pages.
 
 ## Profile workspace
 
 The **Profile** tab is separate from **Research projects**. It includes the
 profile introduction, biography, education, research interests, research
 experience, methods and skills, Academic CV information, and professional
-contact section. Existing profile research-section drafts are migrated into
-this workspace when it first opens.
-
-Profile edits and previews are saved in a separate IndexedDB store in this
-browser. They do not update `profile.html`, upload media, or publish changes.
-The research-project pages remain in the Research projects workspace.
+contact section when those records exist in Amplify Data. Profile edits are
+saved to the cloud; they do not update `profile.html`, upload media, or publish
+changes. The dashboard updates existing profile records rather than creating
+new ones.
 
 ## Subject Index workspace
 

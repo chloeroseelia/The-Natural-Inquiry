@@ -13,8 +13,10 @@ import { planPublicationReconciliation, reconcileDraftFilings, reconcilePublicat
 import capabilities, { PRODUCTION_MESSAGES } from "./environment.js";
 import PublicationsWorkspace from "./PublicationsWorkspace.jsx";
 import ProfileWorkspace from "./ProfileWorkspace.jsx";
+import PublishReview from "./PublishReview.jsx";
 import ResearchWorkspace from "./ResearchWorkspace.jsx";
 import SubjectIndexWorkspace from "./SubjectIndexWorkspace.jsx";
+import WorkspaceStatus from "./WorkspaceStatus.jsx";
 
 const navigation = [
   {
@@ -37,6 +39,7 @@ const navigation = [
   {
     label: "Site",
     items: [
+      { id: "publish-review", label: "Publish", icon: "publish" },
       { id: "website-editor", label: "Website editor", icon: "site" },
       { id: "settings", label: "Settings", icon: "settings" }
     ]
@@ -88,7 +91,7 @@ function Icon({ name, size = 18, className = "" }) {
   );
 }
 
-function Sidebar({ activeSection, onNavigate, isOpen, onClose, user, onSignOut }) {
+function Sidebar({ activeSection, onNavigate, isOpen, onClose, user, onSignOut, cloudStatus }) {
   const accountName = user?.signInDetails?.loginId || user?.username || "Administrator";
 
   return (
@@ -133,13 +136,7 @@ function Sidebar({ activeSection, onNavigate, isOpen, onClose, user, onSignOut }
         </nav>
 
         <div className="sidebar-bottom">
-          <div className="workspace-status">
-            <span className="status-mark"><Icon name="sprig" size={16} /></span>
-            <span>
-              <strong>Local workspace</strong>
-              <small>Stored in this browser</small>
-            </span>
-          </div>
+          <WorkspaceStatus cloudStatus={cloudStatus} icon={<Icon name="sprig" size={16} />} />
           <button className="profile-switcher" type="button" onClick={() => onNavigate("settings")}>
             <span className="avatar">CE</span>
             <span className="profile-name"><strong>{accountName}</strong><small>Administrator</small></span>
@@ -834,6 +831,7 @@ export default function App({ user, onSignOut }) {
     <div className="admin-app">
       <Sidebar
         activeSection={activeSection}
+        cloudStatus={cloudStatus}
         isOpen={mobileNavOpen}
         onClose={() => setMobileNavOpen(false)}
         onNavigate={setActiveSection}
@@ -959,6 +957,8 @@ export default function App({ user, onSignOut }) {
               initialEntries={savedProfile}
               onSave={handleSaveProfile}
             />
+          ) : activeSection === "publish-review" ? (
+            <PublishReview />
           ) : activeSection === "subject-index" ? (
             <SubjectIndexWorkspace
               initialCategories={taxonomy}
@@ -979,7 +979,7 @@ export default function App({ user, onSignOut }) {
             />
           )}
           <footer className="workspace-footer">
-            <span>Made for curiosity, saved in this browser.</span>
+            <span>Cloud content &middot; Drafts saved in this browser.</span>
             <span>The Natural Inquiry <span className="footer-separator">·</span> Workspace preview</span>
           </footer>
         </main>

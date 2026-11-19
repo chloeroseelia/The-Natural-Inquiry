@@ -80,7 +80,20 @@ function isBlank(value) {
 // Returns an ISO string, null when empty, or undefined when the value cannot be parsed.
 function toIso(value) {
   if (isBlank(value)) return null;
-  if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)) return `${value}T00:00:00.000Z`;
+  if (typeof value === "string") {
+    const dateOnly = /^(\d{4}-\d{2}-\d{2})$/.exec(value);
+    if (dateOnly) {
+      const date = new Date(`${value}T00:00:00.000Z`);
+      return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === dateOnly[1]
+        ? date.toISOString()
+        : undefined;
+    }
+
+    const dateTime = /^(\d{4}-\d{2}-\d{2})T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})$/i.exec(value);
+    if (!dateTime) return undefined;
+    const calendarDate = new Date(`${dateTime[1]}T00:00:00.000Z`);
+    if (Number.isNaN(calendarDate.getTime()) || calendarDate.toISOString().slice(0, 10) !== dateTime[1]) return undefined;
+  }
   const time = value instanceof Date ? value.getTime() : new Date(value).getTime();
   return Number.isNaN(time) ? undefined : new Date(time).toISOString();
 }
@@ -109,7 +122,7 @@ function mapPublication(local) {
     title: local.title,
     subtitle: local.subtitle,
     category: local.category,
-    summary: null,
+    summary: local.summary,
     content: local.bodyHtml,
     contentFormat: "RICH_TEXT",
     archived: Boolean(local.archived),
@@ -143,8 +156,12 @@ function mapPublication(local) {
 function mapResearch(local) {
   const warnings = [];
   const blockers = [];
-  const stage = PROJECT_STAGES[String(local.status ?? "").trim().toLowerCase()] ?? null;
-  if (!stage) warnings.push(`Project stage "${local.status ?? ""}" is not recognised; projectStage would be empty.`);
+  const sourceStage = String(local.status ?? "").trim();
+  const stage = PROJECT_STAGES[sourceStage.toLowerCase()] ?? null;
+  if (sourceStage && !stage) blockers.push(`Project stage "${sourceStage}" is not recognised and cannot be migrated safely.`);
+  if (!isBlank(local.subtitle) && !isBlank(local.summary) && local.subtitle !== local.summary) {
+    blockers.push("Both subtitle and summary contain different text, but the cloud model has only one summary field.");
+  }
 
   const record = {
     id: local.id,
@@ -152,7 +169,7 @@ function mapResearch(local) {
     summary: isBlank(local.subtitle) ? local.summary : local.subtitle,
     overview: local.overview,
     overviewTitle: local.overviewTitle,
-    content: null,
+    content: local.content,
     projectNote: local.note,
     projectStage: stage,
     status: "DRAFT",
@@ -179,7 +196,7 @@ function mapProfile(local) {
   const warnings = [];
   const blockers = [];
   const order = PROFILE_ORDER.indexOf(local.id);
-  if (order === -1) warnings.push("Not in the known profile order; sortOrder would be empty.");
+  if (order === -1) blockers.push("This profile section has no known sort order and cannot be migrated safely.");
 
   const record = {
     id: local.id,
@@ -352,6 +369,7 @@ function publicationFromCloud(cloud) {
       indexCategories: indexCategories.value,
       references: references.value,
       bodyHtml: textOr(cloud.content),
+      ...(isBlank(cloud.summary) ? {} : { summary: textOr(cloud.summary) }),
       sourcePage: textOr(cloud.publicPath),
       sourceDocumentName: textOr(cloud.sourceDocumentName),
       createdAt: isoOrNull(cloud.importedCreatedAt),
@@ -376,6 +394,7 @@ function researchFromCloud(cloud) {
       status: status ?? "In progress",
       title: textOr(cloud.title),
       subtitle: textOr(cloud.summary),
+      ...(isBlank(cloud.content) ? {} : { content: textOr(cloud.content) }),
       overviewTitle: textOr(cloud.overviewTitle),
       overview: textOr(cloud.overview),
       note: textOr(cloud.projectNote),

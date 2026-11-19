@@ -1,0 +1,279 @@
+# TEMPLATE - inactive until copied to .github/workflows/publish-content.yml on the public repo's
+# default branch, together with deploy-pages.yml. Never copy the admin amplify.yml into the
+# public site.
+#
+# Requires Settings > Pages > Source = "GitHub Actions". A push made with GITHUB_TOKEN does not
+# trigger a Pages build, so after committing the generated pages this workflow deploys the site
+# itself by calling deploy-pages.yml. No GitHub App is needed.
+#
+# Verify main branch rules allow github-actions[bot] to push. The generation job is read-only;
+# only the final push step receives the job's write-capable token.
+#
+# Action pins verified against the official Git refs API on 2026-11-06:
+# actions/checkout v4.2.2 -> 11bd71901bbe5b1630ceea73d27597364c9af683
+# actions/setup-node v4.4.0 -> 49933ea5288caeca8642d1e84afbd3f7d6820020
+# actions/upload-artifact v4.6.2 -> ea165f8d65b6e75b540449e92b4886f43607fa02
+# actions/download-artifact v4.3.0 -> d3f86a106a0bac45b974a628896c90dbdf5c8093
+name: Publish content from admin
+
+on:
+  workflow_dispatch:
+    inputs:
+      manifest_sha256:
+        description: Required SHA-256 of the sanitized manifest written by the publishing function
+        required: true
+        type: string
+      manifest_generated_at:
+        description: Informational manifest timestamp
+        required: false
+        type: string
+
+concurrency:
+  group: publish-content
+  cancel-in-progress: false
+
+jobs:
+  generate:
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      base_sha: ${{ steps.base.outputs.sha }}
+    env:
+      MANIFEST_SHA256: ${{ inputs.manifest_sha256 }}
+      PUBLIC_CONTENT_DOMAIN: ${{ vars.PUBLIC_CONTENT_DOMAIN }}
+      PUBLISHER_TOOLS_REF: ${{ vars.PUBLISHER_TOOLS_REF }}
+    steps:
+      - name: Validate dispatch inputs
+        run: |
+          set -euo pipefail
+          [[ "$PUBLIC_CONTENT_DOMAIN" =~ ^[a-z0-9]+\.cloudfront\.net$ ]] || { echo "PUBLIC_CONTENT_DOMAIN is missing or invalid"; exit 1; }
+          [[ "$PUBLISHER_TOOLS_REF" =~ ^[0-9a-f]{40}$ ]] || { echo "PUBLISHER_TOOLS_REF must be a full commit SHA"; exit 1; }
+          [[ "$MANIFEST_SHA256" =~ ^[0-9a-f]{64}$ ]] || { echo "A valid manifest_sha256 is required"; exit 1; }
+
+      - name: Check out the public site (read only)
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: main
+          path: site
+          persist-credentials: false
+
+      - name: Check out the generator only (pinned commit)
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ vars.PUBLISHER_TOOLS_REF }}
+          path: tools
+          sparse-checkout: admin/site-publisher
+          persist-credentials: false
+
+      - name: Record public-site base revision
+        id: base
+        run: echo "sha=$(git -C site rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+
+      - name: Install generator dependencies
+        working-directory: tools/admin/site-publisher
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Download the sanitized manifest
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --proto '=https' --tlsv1.2 --max-redirs 0 \
+            --max-time 30 --max-filesize 4194304 \
+            --output manifest.json "https://${PUBLIC_CONTENT_DOMAIN}/published/manifest.json"
+
+      - name: Verify hash and generate output artifact
+        run: |
+          set -euo pipefail
+          BASE_SHA="$(git -C site rev-parse HEAD)"
+          node tools/admin/site-publisher/apply-manifest.mjs \
+            --manifest manifest.json \
+            --site-root site \
+            --expect-sha256 "$MANIFEST_SHA256" \
+            --artifact-dir publish-artifact \
+            --base-sha "$BASE_SHA"
+
+      - name: Upload generated output only
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: generated-public-output
+          path: publish-artifact/
+          if-no-files-found: error
+          retention-days: 1
+
+  commit:
+    needs: generate
+    if: github.ref == 'refs/heads/main'
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      created: ${{ steps.commit.outputs.created }}
+    env:
+      EXPECTED_BASE_SHA: ${{ needs.generate.outputs.base_sha }}
+      EXPECTED_MANIFEST_SHA256: ${{ inputs.manifest_sha256 }}
+    steps:
+      - name: Check out the public site without credentials
+        run: git clone --quiet --branch main --single-branch https://github.com/chloeroseelia/The-Natural-Inquiry.git site
+
+      - name: Download generated output artifact
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: generated-public-output
+          path: publish-artifact
+
+      - name: Validate artifact, apply allowlisted files, and create commit
+        id: commit
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs = require("node:fs");
+          const path = require("node:path");
+          const { execFileSync, spawnSync } = require("node:child_process");
+          const root = path.resolve("site");
+          const artifact = path.resolve("publish-artifact");
+          const marker = "<!-- generated-by: natural-inquiry-site-publisher; do not edit by hand -->";
+          const dataPath = "natural-inquiry-published-entries.js";
+          const pagePath = /^(?:writing|research)\/[a-z0-9]+(?:-[a-z0-9]+)*\.html$/;
+          const sha = /^[0-9a-f]{40}$/;
+          const hash = /^[0-9a-f]{64}$/;
+          const within = (base, target) => {
+            const rel = path.relative(base, target);
+            return rel !== "" && rel !== ".." && !rel.startsWith(`..${path.sep}`) && !path.isAbsolute(rel);
+          };
+          const fail = (message) => { throw new Error(message); };
+          const stat = (target) => {
+            try { return fs.lstatSync(target); }
+            catch (error) { if (error.code === "ENOENT") return null; throw error; }
+          };
+          const requireDirectory = (target) => {
+            const s = stat(target);
+            if (!s || s.isSymbolicLink() || !s.isDirectory()) fail(`Expected a real directory: ${target}`);
+          };
+          const requireRegularOrMissing = (target) => {
+            const s = stat(target);
+            if (s && (s.isSymbolicLink() || !s.isFile())) fail(`Refusing a non-regular file: ${target}`);
+            return s;
+          };
+          const allowed = (value) => value === dataPath || pagePath.test(value);
+
+          if (!sha.test(process.env.EXPECTED_BASE_SHA || "")) fail("Invalid generated base revision.");
+          if (!hash.test(process.env.EXPECTED_MANIFEST_SHA256 || "")) fail("A valid manifest SHA-256 is required.");
+          requireDirectory(root);
+          requireDirectory(path.join(root, "writing"));
+          requireDirectory(path.join(root, "research"));
+          requireDirectory(artifact);
+
+          const changesPath = path.join(artifact, "changes.json");
+          if (!requireRegularOrMissing(changesPath)) fail("Artifact metadata is missing.");
+          const changes = JSON.parse(fs.readFileSync(changesPath, "utf8"));
+          if (!changes || changes.version !== 1 || changes.baseSha !== process.env.EXPECTED_BASE_SHA
+            || changes.manifestSha256 !== process.env.EXPECTED_MANIFEST_SHA256
+            || !Array.isArray(changes.written) || !Array.isArray(changes.deleted)) fail("Artifact metadata does not match this workflow run.");
+          const unique = (items) => new Set(items).size === items.length;
+          if (!unique(changes.written) || !unique(changes.deleted)) fail("Artifact contains duplicate paths.");
+          if (changes.written.some((item) => typeof item !== "string" || !allowed(item))
+            || changes.deleted.some((item) => typeof item !== "string" || !pagePath.test(item))) fail("Artifact contains an out-of-scope path.");
+          if (changes.written.some((item) => changes.deleted.includes(item))) fail("Artifact both writes and deletes a path.");
+
+          const filesRoot = path.join(artifact, "files");
+          const found = [];
+          const filesRootStat = stat(filesRoot);
+          if (changes.written.length > 0) requireDirectory(filesRoot);
+          else if (filesRootStat) requireDirectory(filesRoot);
+          const walk = (directory, relativeDirectory = "") => {
+            for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+              const relativePath = relativeDirectory ? `${relativeDirectory}/${entry.name}` : entry.name;
+              const target = path.join(directory, entry.name);
+              if (entry.isSymbolicLink()) fail(`Artifact contains a symlink: ${relativePath}`);
+              if (entry.isDirectory()) walk(target, relativePath);
+              else if (entry.isFile()) found.push(relativePath);
+              else fail(`Artifact contains a special file: ${relativePath}`);
+            }
+          };
+          if (filesRootStat) walk(filesRoot);
+          if (!unique(found) || found.length !== changes.written.length
+            || found.some((item) => !changes.written.includes(item))) fail("Artifact files do not match its write list.");
+
+          const operations = [];
+          for (const relativePath of changes.written) {
+            const source = path.resolve(filesRoot, ...relativePath.split("/"));
+            const target = path.resolve(root, ...relativePath.split("/"));
+            if (!within(filesRoot, source) || !within(root, target)) fail(`Resolved path escaped its root: ${relativePath}`);
+            const sourceParts = relativePath.split("/");
+            if (sourceParts.length > 1) requireDirectory(path.join(filesRoot, sourceParts[0]));
+            if (relativePath !== dataPath) requireDirectory(path.join(root, sourceParts[0]));
+            const sourceStat = requireRegularOrMissing(source);
+            if (!sourceStat) fail(`Artifact file is missing: ${relativePath}`);
+            const content = fs.readFileSync(source, "utf8");
+            if (relativePath === dataPath) {
+              if (!content.startsWith("window.NaturalInquiryPublishedEntries = ")) fail("Published index data has an unexpected format.");
+            } else if (!content.includes(marker)) fail(`Generated-page marker is missing: ${relativePath}`);
+            const targetStat = requireRegularOrMissing(target);
+            if (targetStat && relativePath !== dataPath && !fs.readFileSync(target, "utf8").includes(marker)) {
+              fail(`Refusing to overwrite a hand-written page: ${relativePath}`);
+            }
+            operations.push({ kind: "write", relativePath, target, content });
+          }
+          for (const relativePath of changes.deleted) {
+            const target = path.resolve(root, ...relativePath.split("/"));
+            if (!within(root, target)) fail(`Resolved path escaped the site root: ${relativePath}`);
+            requireDirectory(path.join(root, relativePath.split("/")[0]));
+            const targetStat = requireRegularOrMissing(target);
+            if (!targetStat || !fs.readFileSync(target, "utf8").includes(marker)) {
+              fail(`Refusing to delete a missing or hand-written page: ${relativePath}`);
+            }
+            operations.push({ kind: "delete", relativePath, target });
+          }
+
+          const currentBase = execFileSync("git", ["-C", "site", "rev-parse", "HEAD"], { encoding: "utf8" }).trim();
+          if (currentBase !== process.env.EXPECTED_BASE_SHA) fail("The public site changed during generation; nothing was applied. Dispatch again.");
+
+          for (const operation of operations) {
+            if (operation.kind === "write") fs.writeFileSync(operation.target, operation.content, "utf8");
+            else fs.unlinkSync(operation.target);
+          }
+          const paths = [...changes.written, ...changes.deleted];
+          if (paths.length === 0) {
+            fs.appendFileSync(process.env.GITHUB_OUTPUT, "created=false\n");
+            process.exit(0);
+          }
+          execFileSync("git", ["-C", "site", "add", "-A", "--", ...paths]);
+          const staged = spawnSync("git", ["-C", "site", "diff", "--cached", "--quiet"]);
+          if (staged.status === 0) {
+            fs.appendFileSync(process.env.GITHUB_OUTPUT, "created=false\n");
+            process.exit(0);
+          }
+          if (staged.status !== 1) fail("Could not inspect staged content.");
+          execFileSync("git", ["-C", "site", "-c", "user.name=github-actions[bot]", "-c", "user.email=41898282+github-actions[bot]@users.noreply.github.com", "commit", "-m", "Publish content from admin dashboard"]);
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, "created=true\n");
+          NODE
+
+      - name: Push generated-content commit
+        if: steps.commit.outputs.created == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          # The helper and token exist only in this process environment. Nothing is written to
+          # .git/config, a file, an artifact, or the log.
+          git -C site \
+            -c credential.helper= \
+            -c 'credential.helper=!f() { if [ "$1" = get ]; then printf "username=x-access-token\npassword=%s\n" "$GH_TOKEN"; fi; }; f' \
+            push origin HEAD:main
+
+  deploy:
+    # The pushed commit cannot start deploy-pages.yml on its own, so deploy it from here.
+    needs: commit
+    if: needs.commit.outputs.created == 'true'
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    uses: ./.github/workflows/deploy-pages.yml

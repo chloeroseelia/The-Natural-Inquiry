@@ -1,5 +1,5 @@
-// Capabilities that depend on the local Vite dev server (`/__admin-api/*`) or on temporary tools.
-// Those endpoints do not exist in a hosted build, so everything that needs them is off in production.
+// Capabilities that depend on the local Vite dev server (`/__admin-api/*`) or development-only tools.
+// These capabilities remain off in production.
 // Cloud-backed editing (Publications, Research, Profile) is unaffected by these flags.
 
 export function getCapabilities(isDevelopment) {
@@ -14,8 +14,9 @@ export function getCapabilities(isDevelopment) {
 
 export const TOOL_ROUTES = ["#cloud-check", "#storage-diagnostic", "#migration-preview"];
 
-// Returns the tool route to render, or null. In production no route is ever returned.
+// The read-only cloud check is available in production; other diagnostics remain development-only.
 export function resolveToolRoute(hash, capabilities) {
+  if (hash === "#cloud-check") return hash;
   return capabilities.diagnosticTools && TOOL_ROUTES.includes(hash) ? hash : null;
 }
 

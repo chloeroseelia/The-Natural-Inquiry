@@ -67,16 +67,41 @@ const pass = (name) => console.log(`${++n} ${name}: ok`);
 
 // buildCreateInput
 {
-  const a = buildCreateInput({ id: "x", indexCategories: [{ id: "a", subjects: ["s"] }], references: [{ id: "r", title: "t", url: "u" }], mediaKeys: null, title: "T", summary: undefined });
-  assert.equal(a.indexCategories, '[{"id":"a","subjects":["s"]}]');
-  assert.equal(a.references, '[{"id":"r","title":"t","url":"u"}]');
-  assert.ok(!("mediaKeys" in a) && !("summary" in a));
-  assert.equal(a.revision, 1);
-  assert.equal(buildCreateInput({ mediaKeys: { a: 1 } }).mediaKeys, '{"a":1}');
-  assert.equal(buildCreateInput({ references: [] }).references, "[]");
-  assert.deepEqual(Object.keys(buildCreateInput({ id: "i", references: null })).sort(), ["id", "revision"]);
-  assert.equal(buildCreateInput({ indexCategories: "[1]" }).indexCategories, "[1]");
-  pass("JSON serialization, null/undefined omitted, no double encoding");
+  const fields = {
+    indexCategories: [{ id: "a", subjects: ["s"] }],
+    references: { source: { title: "t", url: "https://example.org" } },
+    mediaKeys: ["admin-media/key-1", { key: "admin-media/key-2" }]
+  };
+  const input = buildCreateInput({
+    id: "x",
+    ...fields,
+    title: "T",
+    publishedAt: "2024-05-01T00:00:00.000Z",
+    archived: false,
+    sortOrder: 3,
+    summary: undefined
+  });
+  for (const [field, value] of Object.entries(fields)) {
+    assert.equal(typeof input[field], "string", `${field} is an AWSJSON string`);
+    assert.deepEqual(JSON.parse(input[field]), value, `${field} contains the original JSON value`);
+  }
+  assert.equal(input.title, "T");
+  assert.equal(input.publishedAt, "2024-05-01T00:00:00.000Z");
+  assert.equal(input.archived, false);
+  assert.equal(input.sortOrder, 3);
+  assert.ok(!("summary" in input));
+  assert.equal(input.revision, 1);
+
+  for (const field of JSON_FIELDS) {
+    assert.equal(buildCreateInput({ [field]: [] })[field], "[]", `${field} empty array`);
+    assert.equal(buildCreateInput({ [field]: {} })[field], "{}", `${field} empty object`);
+    for (const value of [null, undefined]) {
+      assert.ok(!(field in buildCreateInput({ [field]: value })), `${field} ${value} is omitted`);
+    }
+  }
+  assert.equal(buildCreateInput({ indexCategories: "[1]" }).indexCategories, "[1]", "valid JSON strings are not double-encoded");
+  assert.throws(() => buildCreateInput({ references: "not JSON" }), /references must contain valid JSON/);
+  pass("only present AWSJSON fields are serialized; nullish values are omitted and ordinary fields stay unchanged");
 }
 
 // Full run, order, ids, verification
@@ -209,6 +234,17 @@ const pass = (name) => console.log(`${++n} ${name}: ok`);
   assert.deepEqual(r.selectedModels, ["ProfileContent", "Publication"]);
   assert.ok(!h.localReads.includes("ResearchProject"));
   pass("selection is required, validated, and always run in fixed order");
+}
+
+{
+  const skipped = [{ id: "legacy-profile", reason: "Stored with kind profile." }];
+  const report = await runMigration({
+    models: ["ProfileContent"],
+    readLocal: async () => ({ records: [], skipped }),
+    io: {}
+  });
+  assert.deepEqual(report.models[0].skipped, skipped);
+  pass("excluded local records remain visible in the migration report");
 }
 
 console.log("frozen local inputs were never mutated: ok");

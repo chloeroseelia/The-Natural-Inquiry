@@ -345,7 +345,7 @@ export default function EntryEditor({ initialDraft, taxonomy, onClose, onSave, o
       <div className="editor-privacy-note">
         <Icon name="leaf" size={16} />
         <span>
-          Drafts and uploaded PDFs stay in this browser on this device. This workspace has no sign-in or cloud backup yet; drafts are not private from other users of this device.
+          Drafts and uploaded PDFs stay in this browser on this device and are not backed up to the cloud. They are not private from other users of this device.
         </span>
       </div>
 

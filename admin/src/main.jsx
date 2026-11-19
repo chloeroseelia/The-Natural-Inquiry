@@ -9,15 +9,15 @@ import App from "./App.jsx";
 import capabilities, { resolveToolRoute } from "./environment.js";
 import "./admin.css";
 
-// Temporary tools are loaded only in development. `import.meta.env.DEV` is replaced at build time,
-// so these modules are removed from the production bundle entirely.
-const devTools = import.meta.env.DEV
-  ? {
-      "#cloud-check": React.lazy(() => import("./CloudConnectivityCheck.jsx")),
+const tools = {
+  "#cloud-check": React.lazy(() => import("./CloudConnectivityCheck.jsx")),
+  ...(import.meta.env.DEV
+    ? {
       "#storage-diagnostic": React.lazy(() => import("./StorageDiagnostic.jsx")),
       "#migration-preview": React.lazy(() => import("./MigrationPreview.jsx"))
     }
-  : {};
+    : {})
+};
 
 Amplify.configure(outputs);
 
@@ -108,7 +108,7 @@ function AdminAccessGate({ user, signOut }) {
   }
 
   const toolRoute = resolveToolRoute(tool, capabilities);
-  const Tool = toolRoute ? devTools[toolRoute] : null;
+  const Tool = toolRoute ? tools[toolRoute] : null;
   if (Tool) {
     return (
       <React.Suspense fallback={<main className="auth-page"><p className="auth-status" role="status">Loading tool…</p></main>}>

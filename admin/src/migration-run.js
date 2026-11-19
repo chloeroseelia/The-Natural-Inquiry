@@ -9,11 +9,25 @@ let migrationRunning = false;
 // AWSJSON fields must be sent as JSON strings; the Amplify client does not stringify them.
 const JSON_FIELDS = new Set(["indexCategories", "references", "mediaKeys"]);
 
+function serializeJsonField(key, value) {
+  if (typeof value === "string") {
+    try {
+      JSON.parse(value);
+    } catch {
+      throw new Error(`${key} must contain valid JSON.`);
+    }
+    return value;
+  }
+  const serialized = JSON.stringify(value);
+  if (typeof serialized !== "string") throw new Error(`${key} could not be serialized as JSON.`);
+  return serialized;
+}
+
 export function buildCreateInput(mapped) {
   const input = { revision: 1 };
   for (const [key, value] of Object.entries(mapped)) {
     if (value === null || value === undefined) continue;
-    input[key] = JSON_FIELDS.has(key) && typeof value !== "string" ? JSON.stringify(value) : value;
+    input[key] = JSON_FIELDS.has(key) ? serializeJsonField(key, value) : value;
   }
   return input;
 }
@@ -46,7 +60,7 @@ export async function runMigration({ models, readLocal, io, onProgress = () => {
 
   try {
     for (const model of selected) {
-      const entry = { model, results: [], error: null };
+      const entry = { model, results: [], skipped: [], error: null };
       report.models.push(entry);
 
       let local;
@@ -57,6 +71,7 @@ export async function runMigration({ models, readLocal, io, onProgress = () => {
         stopReason = stopReason ?? entry.error;
         continue;
       }
+      entry.skipped = Array.isArray(local.skipped) ? local.skipped : [];
 
       for (const localRecord of local.records) {
         const planned = classifyRecord(model, localRecord, new Map());

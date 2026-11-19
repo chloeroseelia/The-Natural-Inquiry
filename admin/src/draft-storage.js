@@ -178,6 +178,42 @@ export function listProfileEntries() {
   return runTransaction(PROFILE_STORE, "readonly", (store) => store.getAll());
 }
 
+export function readAllLocalStores() {
+  return openDatabase().then((database) => new Promise((resolve, reject) => {
+    const transaction = database.transaction(
+      [PUBLICATION_STORE, RESEARCH_STORE, PROFILE_STORE, DRAFT_STORE, METADATA_STORE],
+      "readonly"
+    );
+    const stores = {};
+    let metadataKeys;
+    let metadataValues;
+
+    transaction.oncomplete = () => resolve({
+      publications: stores[PUBLICATION_STORE],
+      research: stores[RESEARCH_STORE],
+      profile: stores[PROFILE_STORE],
+      drafts: stores[DRAFT_STORE],
+      metadata: metadataKeys.map((key, index) => ({ key, value: metadataValues[index] }))
+    });
+    transaction.onerror = () => reject(new Error("The browser could not read all local workspace stores."));
+    transaction.onabort = () => reject(new Error("The local workspace backup read was cancelled by the browser."));
+
+    for (const name of [PUBLICATION_STORE, RESEARCH_STORE, PROFILE_STORE, DRAFT_STORE]) {
+      const request = transaction.objectStore(name).getAll();
+      request.onsuccess = () => { stores[name] = request.result; };
+      request.onerror = () => reject(new Error(`The browser could not read the ${name} store.`));
+    }
+
+    const metadata = transaction.objectStore(METADATA_STORE);
+    const keysRequest = metadata.getAllKeys();
+    const valuesRequest = metadata.getAll();
+    keysRequest.onsuccess = () => { metadataKeys = keysRequest.result; };
+    valuesRequest.onsuccess = () => { metadataValues = valuesRequest.result; };
+    keysRequest.onerror = () => reject(new Error("The browser could not read local metadata keys."));
+    valuesRequest.onerror = () => reject(new Error("The browser could not read local metadata values."));
+  }));
+}
+
 export function seedProfileIfNeeded(entries) {
   return openDatabase().then((database) => new Promise((resolve, reject) => {
     const transaction = database.transaction([RESEARCH_STORE, PROFILE_STORE, METADATA_STORE], "readwrite");

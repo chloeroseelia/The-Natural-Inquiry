@@ -35,15 +35,16 @@ globalThis.fetch = (...args) => { forbidden.push(args[0]); throw new Error("unex
   const prod = getCapabilities(false);
   const dev = getCapabilities(true);
   assert.deepEqual(TOOL_ROUTES, ["#cloud-check", "#storage-diagnostic", "#migration-preview"]);
+  assert.equal(resolveToolRoute("#cloud-check", prod), "#cloud-check", "read-only cloud check available in production");
   for (const route of TOOL_ROUTES) {
-    assert.equal(resolveToolRoute(route, prod), null, `${route} unavailable in production`);
+    if (route !== "#cloud-check") assert.equal(resolveToolRoute(route, prod), null, `${route} unavailable in production`);
     assert.equal(resolveToolRoute(route, dev), route, `${route} available in development`);
   }
   for (const odd of ["", "#", "#unknown", "#CLOUD-CHECK", "#cloud-check ", "#/cloud-check", "cloud-check"]) {
     assert.equal(resolveToolRoute(odd, prod), null);
     assert.equal(resolveToolRoute(odd, dev), null, `${JSON.stringify(odd)} is not a tool route`);
   }
-  pass("hash routes: tools unreachable in production however the hash is typed; available in development");
+  pass("hash routes: only cloud check available in production; all tools available in development");
 }
 
 // ---- 3. rendered components ------------------------------------------------------------------------------
@@ -59,6 +60,77 @@ const server = await createServer({
 try {
   const { default: SubjectIndexWorkspace } = await server.ssrLoadModule("/src/SubjectIndexWorkspace.jsx");
   const { default: EntryEditor } = await server.ssrLoadModule("/src/EntryEditor.jsx");
+  const { default: WorkspaceStatus } = await server.ssrLoadModule("/src/WorkspaceStatus.jsx");
+  const { default: CloudConnectivityCheck } = await server.ssrLoadModule("/src/CloudConnectivityCheck.jsx");
+  const { default: PublishReview, requestPublishReview } = await server.ssrLoadModule("/src/PublishReview.jsx");
+
+  const reviewResult = {
+    dryRun: true, wrote: false, reviewDigest: "a".repeat(64),
+    manifest: { publications: [{ id: "p1", title: "Test", contentHtml: "<p>Public text</p>" }], research: [], profile: [] },
+    changes: { added: [], removed: [], changed: [] }, excluded: [], notes: [], warnings: []
+  };
+  const calls = [];
+  const fakeClient = { mutations: { publishSite: async (input) => { calls.push(input); return { data: JSON.stringify(reviewResult) }; } } };
+  assert.deepEqual(await requestPublishReview(fakeClient), reviewResult);
+  assert.deepEqual(calls, [{ dryRun: true }], "review only invokes dry-run");
+  await assert.rejects(requestPublishReview({ mutations: {} }), /not configured/);
+  await assert.rejects(requestPublishReview({ mutations: { publishSite: async () => ({ errors: [{ message: "denied" }] }) } }), /denied/);
+  await assert.rejects(requestPublishReview({ mutations: { publishSite: async () => ({ data: "not json" }) } }), /invalid review/);
+  await assert.rejects(requestPublishReview({ mutations: { publishSite: async () => ({ data: { ...reviewResult, wrote: true } }) } }), /incomplete review/);
+  const reviewHtml = renderToStaticMarkup(createElement(PublishReview));
+  assert.match(reviewHtml, /Review changes/);
+  assert.match(reviewHtml, /PDF uploads, images and the Profile page/);
+  assert.doesNotMatch(reviewHtml, /Publish to website/, "no publish button before a review exists");
+  pass("publishing review requests only dry-run and rejects failed or incomplete results");
+
+  const { requestPublish, describePublishResult } = await server.ssrLoadModule("/src/PublishReview.jsx");
+  const publishResult = { dryRun: false, wrote: true, siteUpdate: { status: "dispatched" } };
+  const publishCalls = [];
+  const publishClient = { mutations: { publishSite: async (input) => { publishCalls.push(input); return { data: JSON.stringify(publishResult) }; } } };
+  assert.deepEqual(await requestPublish("b".repeat(64), publishClient), publishResult);
+  assert.deepEqual(publishCalls, [{ dryRun: false, reviewDigest: "b".repeat(64) }], "publish sends exactly the reviewed digest");
+  await assert.rejects(requestPublish(undefined, publishClient), /Run a review/);
+  await assert.rejects(requestPublish("not-a-digest", publishClient), /Run a review/);
+  assert.equal(publishCalls.length, 1, "no request is sent without a valid review digest");
+  await assert.rejects(requestPublish("b".repeat(64), { mutations: { publishSite: async () => ({ errors: [{ message: "Content or the public manifest changed since review. Review again; nothing was changed." }] }) } }), /Review again/);
+  await assert.rejects(requestPublish("b".repeat(64), { mutations: { publishSite: async () => ({ data: { dryRun: true, wrote: false, siteUpdate: { status: "dispatched" } } }) } }), /incomplete response/);
+  assert.equal(describePublishResult(publishResult).tone, "success");
+  assert.match(describePublishResult({ ...publishResult, siteUpdate: { status: "not-configured", reason: "The GitHub dispatch token has not been set up yet." } }).title, /not updated/);
+  assert.match(describePublishResult({ ...publishResult, siteUpdate: { status: "failed", reason: "GitHub rejected the workflow request (HTTP 403)." } }).detail, /HTTP 403/);
+  pass("publishing sends only a reviewed digest and reports dispatched, unconfigured and failed site updates");
+
+  const checkHtml = renderToStaticMarkup(createElement(CloudConnectivityCheck, { onClose() {} }));
+  for (const expected of ["Cloud connectivity check", "read-only", "Publication", "ResearchProject", "ProfileContent", "Run read-only check", "Back to dashboard"]) {
+    assert.ok(checkHtml.includes(expected), `cloud check shows ${expected}`);
+  }
+  pass("cloud check renders all three models and requires an explicit read-only check");
+
+  const ready = { state: "ready", message: "" };
+  const statusHtml = (cloudStatus) => renderToStaticMarkup(createElement(WorkspaceStatus, { cloudStatus }));
+  const statuses = { publications: ready, research: ready, profile: ready };
+  assert.match(statusHtml(statuses), /Cloud workspace/);
+  assert.match(statusHtml(statuses), /Cloud content; drafts local/);
+  assert.match(statusHtml({ ...statuses, profile: { state: "loading" } }), /Loading cloud content/);
+  assert.match(statusHtml({ ...statuses, research: { state: "error" }, profile: { state: "loading" } }), /Some cloud content unavailable/);
+  assert.match(statusHtml({ ...statuses, publications: { state: "ready", message: "mapping issues" } }), /Cloud content needs review/);
+  assert.match(statusHtml({ publications: ready }), /Cloud status unavailable/);
+  assert.doesNotMatch(statusHtml(statuses), /Local workspace|Stored in this browser/);
+  pass("workspace status: cloud loading, failures, mapping issues, and local drafts are distinguished");
+
+  const previousWindow = globalThis.window;
+  try {
+    globalThis.window = { navigator: { onLine: true }, addEventListener() {}, removeEventListener() {} };
+    const { default: App } = await server.ssrLoadModule("/src/App.jsx");
+    const appHtml = renderToStaticMarkup(createElement(App, { user: {}, onSignOut() {} }));
+    assert.match(appHtml, /Cloud workspace/);
+    assert.match(appHtml, /Loading cloud content/);
+    assert.doesNotMatch(appHtml, /Local workspace|Stored in this browser/);
+    assert.match(appHtml, /Drafts saved in this browser/);
+  } finally {
+    if (previousWindow === undefined) delete globalThis.window;
+    else globalThis.window = previousWindow;
+  }
+  pass("dashboard renders the cloud status and identifies local drafts");
 
   const categories = [
     { id: "biology", title: "Biology", subjects: ["Marine biology", "Genetics"] },
@@ -121,6 +193,8 @@ try {
   assert.ok(prodEditor.includes("Public-site publishing is not configured yet"), "explains that publishing is not configured");
   assert.ok(!prodEditor.includes("Publishing writes only to this local project folder"));
   assert.ok(prodEditor.includes("Save draft"), "saving drafts still works in production");
+  assert.ok(prodEditor.includes("not backed up to the cloud"), "local drafts are not presented as cloud-backed");
+  assert.ok(!prodEditor.includes("no sign-in"), "draft notice does not deny dashboard authentication");
   assert.ok(prodEditor.includes("Download metadata handoff"), "handoff download remains");
 
   const devEditor = editor({});
